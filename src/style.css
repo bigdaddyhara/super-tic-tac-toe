@@ -1,0 +1,11 @@
+:root{
+  --bg:#0f1720;
+  --panel:#0b1220;
+  --accent:#06b6d4;
+  --muted:#94a3b8;
+}
+html,body,#app{height:100%;}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+#app{display:flex;align-items:center;justify-content:center;padding:12px}
+
+.board-grid{display:grid;gap:8px}
