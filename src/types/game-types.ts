@@ -16,6 +16,11 @@ export interface GameState {
 export type CellIndex = number // 0..8
 export type BoardIndex = number // 0..8
 
+export interface Move {
+  board: BoardIndex
+  cell: CellIndex
+}
+
 export type SmallBoardStatus = 'Open' | 'Won' | 'Draw'
 export type GameStatus = 'Ongoing' | Player | 'Draw'
 

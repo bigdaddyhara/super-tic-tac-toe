@@ -1,5 +1,5 @@
-import { GameState } from '../types/game-types'
-import { isValidMove } from '../game/rules'
+import { GameState, Move } from '../types/game-types'
+import { isValidMove } from '../game/engine'
 import { applyMove } from '../game/state'
 import { DOMRenderer } from './renderer'
 
@@ -19,8 +19,9 @@ export class InputController {
       if (target.classList.contains('cell')) {
         const small = Number(target.dataset.small)
         const cell = Number(target.dataset.cell)
-        if (isValidMove(this.state, small, cell)) {
-          this.state = applyMove(this.state, small, cell)
+        const move: Move = { board: small, cell }
+        if (isValidMove(this.state, move)) {
+          this.state = applyMove(this.state, move).nextState
           this.renderer.update(this.state)
         }
       }

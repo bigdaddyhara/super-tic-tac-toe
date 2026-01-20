@@ -4,7 +4,7 @@ import { createNewGame, applyMove } from '../src/game/state'
 describe('engine applyMove (headless)', () => {
   it('sets nextBoardIndex to the cell index of previous move', () => {
     let g = createNewGame()
-    g = applyMove(g, 0, 4)
+    g = applyMove(g, { board: 0, cell: 4 }).nextState
     expect(g.nextBoardIndex).toBe(4)
   })
 
@@ -18,34 +18,35 @@ describe('engine applyMove (headless)', () => {
     // set nextBoardIndex to 4 (forced), but board 4 is full -> should be free choice
     const gWithForced = { ...g, nextBoardIndex: 4 }
     // attempt a move in a different small board (0,0)
-    const after = applyMove(gWithForced, 0, 0)
+    const after = applyMove(gWithForced, { board: 0, cell: 0 }).nextState
     expect(after.nextBoardIndex === null || typeof after.nextBoardIndex === 'number').toBe(true)
   })
 })
   it('throws on move to occupied cell', () => {
     let g = createNewGame()
-    g = applyMove(g, 0, 0)
-    expect(() => applyMove(g, 0, 0)).toThrow()
+    g = applyMove(g, { board: 0, cell: 0 }).nextState
+    expect(() => applyMove(g, { board: 0, cell: 0 })).toThrow()
   })
 
   it('throws on move out of bounds', () => {
     let g = createNewGame()
-    expect(() => applyMove(g, -1, 0)).toThrow()
-    expect(() => applyMove(g, 0, -1)).toThrow()
-    expect(() => applyMove(g, 9, 0)).toThrow()
-    expect(() => applyMove(g, 0, 9)).toThrow()
+    expect(() => applyMove(g, { board: -1, cell: 0 })).toThrow()
+    expect(() => applyMove(g, { board: 0, cell: -1 })).toThrow()
+    expect(() => applyMove(g, { board: 9, cell: 0 })).toThrow()
+    expect(() => applyMove(g, { board: 0, cell: 9 })).toThrow()
   })
 
   it('throws on move after game finished (win)', () => {
-    // Simulate a win on small board 0 for X
+    // Simulate X winning the big board (3 small boards in a row)
     let g = createNewGame()
-    g = { ...g, bigBoard: g.bigBoard.map((b, i) => i === 0 ? ['X','X',null,'X','X',null,'X',null,null] : [...b]) }
-    // X plays winning move
-    g = applyMove(g, 0, 2)
+    const winBoard = ['X','X','X','O','O',null,null,null,null]
+    g = { ...g, bigBoard: g.bigBoard.map((b, i) => (i < 3 ? [...winBoard] : [...b])) }
+    // X plays a move to trigger big board win detection
+    g = applyMove(g, { board: 0, cell: 5 }).nextState
     // Now winner should be set
     expect(g.winner).toBe('X')
     // Any further move should throw
-    expect(() => applyMove(g, 1, 0)).toThrow()
+    expect(() => applyMove(g, { board: 3, cell: 0 })).toThrow()
   })
 
   it('throws on move after game finished (draw)', () => {
@@ -56,14 +57,14 @@ describe('engine applyMove (headless)', () => {
     // All boards are full, so next move should not be allowed
     g = { ...g, winner: null } // ensure winner is not set yet
     // Apply a move to trigger draw detection
-    expect(() => applyMove(g, 0, 0)).toThrow()
+    expect(() => applyMove(g, { board: 0, cell: 0 })).toThrow()
   })
 
   it('throws on illegal forced board move', () => {
     let g = createNewGame()
-    g = applyMove(g, 0, 4)
+    g = applyMove(g, { board: 0, cell: 4 }).nextState
     // nextBoardIndex is 4, so move in 3 is illegal
-    expect(() => applyMove(g, 3, 0)).toThrow()
+    expect(() => applyMove(g, { board: 3, cell: 0 })).toThrow()
   })
 
   it('handles win on big board', () => {
@@ -72,7 +73,7 @@ describe('engine applyMove (headless)', () => {
     const winBoard = ['X','X','X','O','O',null,null,null,null]
     g = { ...g, bigBoard: g.bigBoard.map((b, i) => (i < 3 ? [...winBoard] : [...b])) }
     // X plays in small 0, cell 5 (doesn't matter, just to trigger win check)
-    g = applyMove(g, 0, 5)
+    g = applyMove(g, { board: 0, cell: 5 }).nextState
     expect(g.winner).toBe('X')
   })
 
@@ -82,5 +83,5 @@ describe('engine applyMove (headless)', () => {
     const drawBoard = ['X','O','X','X','O','X','O','X','O']
     g = { ...g, bigBoard: g.bigBoard.map(() => [...drawBoard]) }
     // Apply a move to trigger draw detection
-    expect(() => applyMove(g, 0, 0)).toThrow()
+    expect(() => applyMove(g, { board: 0, cell: 0 })).toThrow()
   })

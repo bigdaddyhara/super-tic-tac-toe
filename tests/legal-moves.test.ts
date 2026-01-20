@@ -52,7 +52,7 @@ describe('legal-moves edge cases', () => {
   it('getNextConstraint: returns forced board or null', () => {
     let g = createNewGame()
     // play in (0, 4) -> next forced board is 4
-    g = applyMove(g, 0, 4)
+    g = applyMove(g, { board: 0, cell: 4 }).nextState
     expect(getNextConstraint(g, { board: 0, cell: 4 })).toBe(4)
     // fill board 4, now move to (0, 4) should result in free move
     g.bigBoard[4] = fillBoardWithDraw()
