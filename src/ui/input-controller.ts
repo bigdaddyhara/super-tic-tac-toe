@@ -93,20 +93,15 @@ export class CanvasInputController {
 
   private onMove = (e: MouseEvent) => {
     const { x, y } = this.toCanvasSpace(e.clientX, e.clientY)
-    const rect = this.canvas.getBoundingClientRect()
-    const grid = {
-      boardIndex: Math.floor(Math.floor((y - this.hudHeight) / (this.boardSize / 9)) / 3) * 3 + Math.floor(Math.floor(x / (this.boardSize / 9)) / 3),
-      cellIndex: ((Math.floor((y - this.hudHeight) / (this.boardSize / 9)) % 3) * 3) + (Math.floor(x / (this.boardSize / 9)) % 3),
-      bigRow: Math.floor(Math.floor((y - this.hudHeight) / (this.boardSize / 9)) / 3),
-      bigCol: Math.floor(Math.floor(x / (this.boardSize / 9)) / 3),
-      smallRow: Math.floor((y - this.hudHeight) / (this.boardSize / 9)) % 3,
-      smallCol: Math.floor(x / (this.boardSize / 9)) % 3,
-    }
+    const grid = this.mapToGrid(x, y)
     if (!grid) {
       this.hover = null
       if (this.onHoverCb) this.onHoverCb(null)
       return
     }
+
+    // debug log
+    console.log('[input] hover', grid)
 
     this.hover = { smallIndex: grid.boardIndex, cellIndex: grid.cellIndex }
     if (this.onHoverCb) this.onHoverCb(this.hover)
@@ -116,6 +111,8 @@ export class CanvasInputController {
     const { x, y } = this.toCanvasSpace(e.clientX, e.clientY)
     const grid = this.mapToGrid(x, y)
     if (!grid) return
+
+    console.log('[input] click', grid)
 
     // Emit candidate select intent (no engine mutation here)
     const intent: SelectIntent = {

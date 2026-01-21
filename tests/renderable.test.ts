@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { createNewGame, applyMoveToState } from '../src/game/state'
 import { getRenderableState } from '../src/ui/view-model-adapter'
+import { Player } from '../src/types/game-types'
 
 describe('renderableFromGameState mapping', () => {
   test('after a single move the board content and next forced board are reflected', () => {
@@ -17,7 +18,7 @@ describe('renderableFromGameState mapping', () => {
 
   test('small board win is reported in smallBoardStatus', () => {
     // Construct a game state where small board 0 is already won by X
-    const big = Array.from({ length: 9 }).map(() => Array.from({ length: 9 }).map(() => null))
+    const big: (Player | null)[][] = Array.from({ length: 9 }).map(() => Array.from({ length: 9 }).map(() => null))
     big[0][0] = 'X'
     big[0][1] = 'X'
     big[0][2] = 'X'

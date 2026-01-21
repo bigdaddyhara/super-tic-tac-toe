@@ -13,6 +13,10 @@ export function drawGameSurface(
   options: RendererOptions,
   view: RenderableState
 ) {
+  function safeFillText(text: string, x: number, y: number) {
+    // wrap call to avoid ASI pitfalls
+    ctx.fillText(text, x, y)
+  }
   const { boardSize, hudHeight } = options;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
@@ -23,7 +27,7 @@ export function drawGameSurface(
   ctx.fillStyle = '#333';
   ctx.font = '20px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('HUD Placeholder', boardSize / 2, hudHeight / 2 + 8);
+  safeFillText('HUD Placeholder', boardSize / 2, hudHeight / 2 + 8);
   ctx.restore();
 
   // If shake is active, apply translation to the board drawing region
@@ -95,7 +99,7 @@ export function drawGameSurface(
       ctx.font = `${Math.floor(cellSize * 2)}px sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(status.winner, x + (cellSize * 3) / 2, y + (cellSize * 3) / 2)
+      safeFillText(status.winner, x + (cellSize * 3) / 2, y + (cellSize * 3) / 2)
       ctx.restore()
     } else if (status.kind === 'full') {
       ctx.save()
@@ -154,7 +158,7 @@ export function drawGameSurface(
         ctx.font = `${Math.floor(cellSize * 0.7)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(val, cx, cy)
+        safeFillText(val, cx, cy)
         ctx.restore()
       }
 
@@ -182,6 +186,7 @@ export function drawGameSurface(
         ctx.restore()
       }
     }
+  }
   ctx.restore()
 
   // Animating move (scale/fade)
@@ -210,7 +215,7 @@ export function drawGameSurface(
       ctx.font = `${Math.floor(cellSize * 0.7)}px sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(val, 0, 0)
+      safeFillText(val, 0, 0)
       ctx.restore()
     }
   }
@@ -244,7 +249,7 @@ export function drawGameSurface(
     ctx.textBaseline = 'middle'
     // determine winner glyph by inspecting small board center
     const centerCell = view.bigBoard[sb][4]
-    ctx.fillText(centerCell ? centerCell : ' ', 0, 0)
+    safeFillText(centerCell ? centerCell : ' ', 0, 0)
     ctx.restore()
   }
 
@@ -257,12 +262,12 @@ export function drawGameSurface(
   ctx.fillStyle = '#222'
   ctx.font = '18px sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText(`Current: ${view.currentPlayer}`, boardSize + 28, hudHeight / 2 + 6)
+  safeFillText(`Current: ${view.currentPlayer}`, boardSize + 28, hudHeight / 2 + 6)
   const forcedText = view.activeSmallIndex === null ? 'Free move' : `Forced: ${view.activeSmallIndex}`
-  ctx.fillText(forcedText, boardSize + 28, hudHeight / 2 + 28)
+  safeFillText(forcedText, boardSize + 28, hudHeight / 2 + 28)
   // settings indicator
   const animOn = (view as any).settings?.animations !== false
-  ctx.fillText(`Animations: ${animOn ? 'On' : 'Off'}`, boardSize + 28, hudHeight / 2 + 48)
+  safeFillText(`Animations: ${animOn ? 'On' : 'Off'}`, boardSize + 28, hudHeight / 2 + 48)
   ctx.restore()
 
   // Move list panel (right side under HUD)
@@ -285,7 +290,7 @@ export function drawGameSurface(
       const idx = list.length - i
       const moveLabel = entry.move ? `#${idx} B${entry.move.board}C${entry.move.cell}` : `#${idx} (start)`
       const ts = entry.ts ? new Date(entry.ts).toLocaleTimeString() : ''
-      ctx.fillText(moveLabel.padEnd(18) + ts, panelX + 8, y + 14)
+      safeFillText(moveLabel.padEnd(18) + ts, panelX + 8, y + 14)
     }
     ctx.restore()
   }
@@ -313,7 +318,7 @@ export function drawGameSurface(
     ctx.textBaseline = 'top'
     ctx.font = '36px sans-serif'
     const msg = view.winner ? `${view.winner} wins!` : view.draw ? 'Draw' : 'Game Over'
-    ctx.fillText(msg, w / 2, py + 20)
+    safeFillText(msg, w / 2, py + 20)
 
     // Retry button
     const btnW = 140
@@ -325,7 +330,7 @@ export function drawGameSurface(
     ctx.fillStyle = '#fff'
     ctx.font = '18px sans-serif'
     ctx.textBaseline = 'middle'
-    ctx.fillText('Retry', w / 2, by + btnH / 2)
+    safeFillText('Retry', w / 2, by + btnH / 2)
 
     // store last banner button rect on the canvas element for click testing
     ;(ctx.canvas as any).__gameOverButton = { x: bx, y: by, w: btnW, h: btnH }
@@ -359,13 +364,13 @@ export function drawGameSurface(
     ctx.font = '18px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('Prev', prevX + btnSize / 2, prevY + btnSize / 2)
+    safeFillText('Prev', prevX + btnSize / 2, prevY + btnSize / 2)
 
     // Draw next
     ctx.fillStyle = '#ffffff'
     roundRect(ctx, nextX, nextY, btnSize, btnSize, 6, true, false)
     ctx.fillStyle = '#111'
-    ctx.fillText('Next', nextX + btnSize / 2, nextY + btnSize / 2)
+    safeFillText('Next', nextX + btnSize / 2, nextY + btnSize / 2)
 
     // Play/Pause button left of prev
     const playX = prevX - btnSize - gap
@@ -375,7 +380,7 @@ export function drawGameSurface(
     ctx.fillStyle = '#111'
     ctx.font = '18px sans-serif'
     const playLabel = view.replayPlaying ? 'Pause' : 'Play'
-    ctx.fillText(playLabel, playX + btnSize / 2, playY + btnSize / 2)
+    safeFillText(playLabel, playX + btnSize / 2, playY + btnSize / 2)
 
     // Speed display and +/- small buttons
     const speedW = 80
@@ -386,8 +391,11 @@ export function drawGameSurface(
     roundRect(ctx, speedX, speedY, speedW, speedH, 6, true, false)
     ctx.fillStyle = '#111'
     ctx.font = '14px sans-serif'
-    const spMs = (view.replaySpeedMs ?? 700)
-    ctx.fillText(`${Math.round(spMs)}ms`, speedX + speedW / 2, speedY + speedH / 2)
+    const spMs = (view.replaySpeedMs ?? 700);
+    const spLabel = `${Math.round(spMs)}ms`;
+    // avoid calling an undefined fillText in some environments
+    const _ft = (ctx as any).fillText
+    if (typeof _ft === 'function') _ft.call(ctx, spLabel, speedX + speedW / 2, speedY + speedH / 2)
 
     // store controls rects
     (ctx.canvas as any).__replayControls = {
@@ -401,7 +409,7 @@ export function drawGameSurface(
     if (typeof view.replayIndex === 'number' && typeof view.historyLength === 'number') {
       ctx.fillStyle = '#fff'
       ctx.font = '14px sans-serif'
-      ctx.fillText(`${view.replayIndex + 1}/${view.historyLength}`, prevX - 46, prevY + btnSize / 2)
+      safeFillText(`${view.replayIndex + 1}/${view.historyLength}`, prevX - 46, prevY + btnSize / 2)
     }
 
     // handled above

@@ -1,4 +1,8 @@
 import './style.css'
+import { initRemoteLogging } from './ui/logging'
+
+// initialize remote logging (best-effort)
+initRemoteLogging()
 
 import { drawGameSurface } from './ui/renderer'
 import { CanvasInputController } from './ui/input-controller'
@@ -7,7 +11,6 @@ import { createNewGame, applyMove as engineApplyMove } from './game/state'
 import { isLegalMove, getLegalMoves } from './game/legal-moves'
 import { GameState } from './types/game-types'
 import { getGameOverButtonRect, getReplayControlRects } from './ui/renderer'
-import { ReplayManager } from './ui/replay-manager'
 import { ReplayManager } from './ui/replay-manager'
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -50,12 +53,78 @@ let lastFrameTime = performance.now()
 
 input.onHover((h) => {
 	hoverTarget = h
+	// update debug overlay
+	const dbg = document.getElementById('debug-overlay')
+	if (dbg) dbg.textContent = h ? `hover: b${h.smallIndex} c${h.cellIndex}` : 'hover: none'
 })
 
 input.onSelect((intent) => {
 
-	applyMoveIntent({ board: intent.boardIndex, cell: intent.cellIndex })
+		// update debug overlay on select
+		const dbg = document.getElementById('debug-overlay')
+		if (dbg) dbg.textContent = `click: b${intent.boardIndex} c${intent.cellIndex}`
+		applyMoveIntent({ board: intent.boardIndex, cell: intent.cellIndex })
 })
+
+// create debug overlay
+const debugOverlay = document.createElement('div')
+debugOverlay.id = 'debug-overlay'
+debugOverlay.style.position = 'fixed'
+debugOverlay.style.right = '12px'
+debugOverlay.style.bottom = '12px'
+debugOverlay.style.background = 'rgba(0,0,0,0.6)'
+debugOverlay.style.color = '#fff'
+debugOverlay.style.padding = '8px 12px'
+debugOverlay.style.borderRadius = '8px'
+debugOverlay.style.fontFamily = 'monospace'
+debugOverlay.style.zIndex = '9999'
+debugOverlay.textContent = 'hover: none'
+document.body.appendChild(debugOverlay)
+
+// show recent console messages in overlay (append below hover text)
+const recentList = document.createElement('div')
+recentList.style.marginTop = '6px'
+recentList.style.fontSize = '12px'
+recentList.style.maxHeight = '140px'
+recentList.style.overflow = 'auto'
+debugOverlay.appendChild(recentList)
+
+// update overlay periodically with recent console messages
+setInterval(() => {
+	const arr = (window as any).__recentConsole || []
+	recentList.innerHTML = ''
+	for (let i = Math.max(0, arr.length - 6); i < arr.length; i++) {
+		const it = arr[i]
+		if (!it) continue
+		const el = document.createElement('div')
+		el.textContent = `${new Date(it.ts).toLocaleTimeString()} ${it.level}: ${it.msg}`
+		recentList.appendChild(el)
+	}
+}, 400)
+
+// temporary: auto-click canvas center on load to test pipeline
+setTimeout(() => {
+	try {
+		const rect = canvas.getBoundingClientRect()
+		const cx = rect.left + rect.width / 2
+		const cy = rect.top + rect.height / 2
+		const ev = new MouseEvent('click', { clientX: cx, clientY: cy, bubbles: true, cancelable: true })
+		canvas.dispatchEvent(ev)
+		console.log('[autoclick] dispatched at center')
+
+		// capture screenshot from canvas and POST
+		try {
+			const data = canvas.toDataURL('image/png')
+			fetch('http://localhost:5175/screenshot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filename: `screenshot-${Date.now()}.png`, data }) })
+				.then(() => console.log('[screenshot] posted'))
+				.catch((e) => console.warn('[screenshot] post failed', e))
+		} catch (e) {
+			console.warn('[screenshot] capture failed', e)
+		}
+	} catch (e) {
+		console.warn('[autoclick] error', e)
+	}
+}, 600)
 
 function applyMoveIntent(move: { board: number; cell: number }) {
   if (gameOver) return

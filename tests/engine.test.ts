@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createNewGame, applyMove } from '../src/game/state'
+import { Player } from '../src/types/game-types'
 
 describe('engine applyMove (headless)', () => {
   it('sets nextBoardIndex to the cell index of previous move', () => {
@@ -12,9 +13,9 @@ describe('engine applyMove (headless)', () => {
     // create a game and manually close board 4 (fill it)
     const g0 = createNewGame()
     // filledBoard has 5 X and 4 O
-    const filledBoard = ['X','O','X','O','X','O','X','O','X']
+    const filledBoard: (Player | null)[] = ['X','O','X','O','X','O','X','O','X']
     // set currentPlayer to 'O' so counts remain valid after O moves
-    const g = { ...g0, bigBoard: g0.bigBoard.map((b, i) => (i === 4 ? [...filledBoard] : [...b])), currentPlayer: 'O' }
+    const g = { ...g0, bigBoard: g0.bigBoard.map((b, i) => (i === 4 ? [...filledBoard] : [...b])), currentPlayer: 'O' as Player }
     // set nextBoardIndex to 4 (forced), but board 4 is full -> should be free choice
     const gWithForced = { ...g, nextBoardIndex: 4 }
     // attempt a move in a different small board (0,0)
@@ -39,7 +40,7 @@ describe('engine applyMove (headless)', () => {
   it('throws on move after game finished (win)', () => {
     // Simulate X winning the big board (3 small boards in a row)
     let g = createNewGame()
-    const winBoard = ['X','X','X','O','O',null,null,null,null]
+    const winBoard: (Player | null)[] = ['X','X','X','O','O',null,null,null,null]
     g = { ...g, bigBoard: g.bigBoard.map((b, i) => (i < 3 ? [...winBoard] : [...b])) }
     // X plays a move to trigger big board win detection
     g = applyMove(g, { board: 0, cell: 5 }).nextState
@@ -52,7 +53,7 @@ describe('engine applyMove (headless)', () => {
   it('throws on move after game finished (draw)', () => {
     // Simulate all small boards drawn
     let g = createNewGame()
-    const drawBoard = ['X','O','X','X','O','X','O','X','O']
+    const drawBoard: (Player | null)[] = ['X','O','X','X','O','X','O','X','O']
     g = { ...g, bigBoard: g.bigBoard.map(() => [...drawBoard]) }
     // All boards are full, so next move should not be allowed
     g = { ...g, winner: null } // ensure winner is not set yet
@@ -70,7 +71,7 @@ describe('engine applyMove (headless)', () => {
   it('handles win on big board', () => {
     // Simulate X winning 3 small boards in a row
     let g = createNewGame()
-    const winBoard = ['X','X','X','O','O',null,null,null,null]
+    const winBoard: (Player | null)[] = ['X','X','X','O','O',null,null,null,null]
     g = { ...g, bigBoard: g.bigBoard.map((b, i) => (i < 3 ? [...winBoard] : [...b])) }
     // X plays in small 0, cell 5 (doesn't matter, just to trigger win check)
     g = applyMove(g, { board: 0, cell: 5 }).nextState
@@ -80,7 +81,7 @@ describe('engine applyMove (headless)', () => {
   it('handles draw on big board', () => {
     // All small boards are drawn
     let g = createNewGame()
-    const drawBoard = ['X','O','X','X','O','X','O','X','O']
+    const drawBoard: (Player | null)[] = ['X','O','X','X','O','X','O','X','O']
     g = { ...g, bigBoard: g.bigBoard.map(() => [...drawBoard]) }
     // Apply a move to trigger draw detection
     expect(() => applyMove(g, { board: 0, cell: 0 })).toThrow()

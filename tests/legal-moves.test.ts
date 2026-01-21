@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { createNewGame, applyMove } from '../src/game/state'
 import { getLegalMoves, isLegalMove, getNextConstraint } from '../src/game/legal-moves'
+import { Player } from '../src/types/game-types'
 
-function fillBoardWithDraw() {
+function fillBoardWithDraw(): (Player | null)[] {
   // X O X O X O X O X (no winner)
   return ['X','O','X','O','X','O','X','O','X']
 }

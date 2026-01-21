@@ -15,8 +15,18 @@ export interface LastMove {
   smallIndex: number
   cellIndex: number
 }
+// Extras for replay UI
+export interface ReplayExtras {
+  replayAvailable?: boolean
+  inReplayMode?: boolean
+  replayIndex?: number | null
+  historyLength?: number
+  historyEntries?: { move?: { board: number; cell: number }; ts?: number }[]
+  replayPlaying?: boolean
+  replaySpeedMs?: number
+}
 
-export interface RenderableState {
+export interface RenderableState extends ReplayExtras {
   bigBoard: CellValue[][] // 9 arrays of 9 cells each
   smallBoardStatus: SmallBoardStatus[] // length 9
   activeSmallIndex: number | null
@@ -31,17 +41,6 @@ export interface RenderableState {
   shake?: { x: number; y: number } | null
   animatingMove?: { smallIndex: number; cellIndex: number; start: number; duration: number } | null
   boardWinAnim?: { smallIndex: number; start: number; duration: number } | null
-}
-
-// Extras for replay UI
-export interface ReplayExtras {
-  replayAvailable?: boolean
-  inReplayMode?: boolean
-  replayIndex?: number | null
-  historyLength?: number
-  historyEntries?: { move?: { board: number; cell: number }; ts?: number }[]
-  replayPlaying?: boolean
-  replaySpeedMs?: number
 }
 
 // Produce a default, empty renderable state. In later parts this will map from
