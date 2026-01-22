@@ -66,6 +66,24 @@ export function checkBigWin(big: BigBoard): Player | null {
 }
 
 /**
+ * Find two-in-a-row opportunities for a given player on a small 3x3 board.
+ * Returns an array of objects describing the two occupied cells and the target empty cell.
+ * Example: [{ cells: [0,1], target: 2 }, ...]
+ */
+export function findTwoInRow(board: SmallBoard, player: Player): { cells: [number, number]; target: number }[] {
+  const out: { cells: [number, number]; target: number }[] = []
+  for (const [a, b, c] of LINES) {
+    // a & b filled, c empty
+    if (board[a] === player && board[b] === player && board[c] === null) out.push({ cells: [a, b], target: c })
+    // a & c filled, b empty
+    if (board[a] === player && board[c] === player && board[b] === null) out.push({ cells: [a, c], target: b })
+    // b & c filled, a empty
+    if (board[b] === player && board[c] === player && board[a] === null) out.push({ cells: [b, c], target: a })
+  }
+  return out
+}
+
+/**
  * (Responsibility) These functions are the single source of truth for win detection.
  * They should be used by engine and test code to ensure consistency.
  */

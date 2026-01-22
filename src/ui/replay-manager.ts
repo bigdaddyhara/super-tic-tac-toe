@@ -1,9 +1,23 @@
 import { GameState } from '../types/game-types'
+import { getLegalMoves } from '../game/legal-moves'
+import { evaluateSmall } from '../game/engine'
+import { findTwoInRow } from '../game/win-detection'
 
 export type HistoryEntry = {
   state: GameState
   move?: { board: number; cell: number }
   ts: number
+  analysis?: {
+    forcedBoard: number | null
+    legalMoves: { board: number; cell: number }[]
+    threatLines?: { board: number; a: number; b: number; target: number }[]
+  }
+  // optional timer snapshot so replay shows correct timer visuals when scrubbing
+  timer?: {
+    remainingMs: number | null
+    running: boolean
+    timeoutMs?: number
+  }
 }
 
 const STORAGE_KEY = 'sut_history_v1'
@@ -19,8 +33,23 @@ export class ReplayManager {
     this.load()
   }
 
-  push(state: GameState, move?: { board: number; cell: number }) {
-    const entry: HistoryEntry = { state, move, ts: Date.now() }
+  push(state: GameState, move?: { board: number; cell: number }, opts?: { timer?: { remainingMs: number | null; running: boolean; timeoutMs?: number } }) {
+    // compute lightweight analysis snapshot for instant scrubbing
+    const legalMoves = getLegalMoves(state)
+    let forcedBoard: number | null = null
+    if (state.nextBoardIndex !== null) {
+      const nb = state.nextBoardIndex
+      const st = evaluateSmall(state.bigBoard[nb]).status
+      if (st === 'Open') forcedBoard = nb
+    }
+    const threatLines: { board: number; a: number; b: number; target: number }[] = []
+    for (let sb = 0; sb < 9; sb++) {
+      const st = evaluateSmall(state.bigBoard[sb]).status
+      if (st !== 'Open') continue
+      const found = findTwoInRow(state.bigBoard[sb], state.currentPlayer)
+      for (const f of found) threatLines.push({ board: sb, a: f.cells[0], b: f.cells[1], target: f.target })
+    }
+    const entry: HistoryEntry = { state, move, ts: Date.now(), analysis: { forcedBoard, legalMoves, threatLines }, timer: opts?.timer }
     this.entries.push(entry)
     this.save()
   }

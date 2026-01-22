@@ -3,6 +3,8 @@
 
 import { GameState } from '../types/game-types'
 import { evaluateSmall } from '../game/engine'
+import { getLegalMoves } from '../game/legal-moves'
+import { findTwoInRow } from '../game/win-detection'
 
 export type CellValue = 'X' | 'O' | null
 
@@ -41,6 +43,28 @@ export interface RenderableState extends ReplayExtras {
   shake?: { x: number; y: number } | null
   animatingMove?: { smallIndex: number; cellIndex: number; start: number; duration: number } | null
   boardWinAnim?: { smallIndex: number; start: number; duration: number } | null
+  // Analysis mode flag: when true the renderer may draw additional overlays
+  analysisEnabled?: boolean
+  // Computed analysis data (cheap, cached per state change)
+  analysis?: {
+    forcedBoard: number | null
+    legalMoves: { board: number; cell: number }[]
+    threatLines?: { board: number; a: number; b: number; target: number }[]
+  }
+  // Turn timer UI fields
+  turnTimerRemainingMs?: number | null
+  turnTimerRunning?: boolean
+  turnTimeoutMs?: number
+  // UI settings snapshot (persisted)
+  settings?: {
+    analysisEnabled?: boolean
+    turnTimerEnabled?: boolean
+    turnTimeoutSec?: number
+    autoExpiryBehavior?: 'auto-random' | 'auto-loss'
+    showLastMoveHighlight?: boolean
+    forcedBoardIntensity?: number
+    visuals?: { animations?: boolean }
+  }
 }
 
 // Produce a default, empty renderable state. In later parts this will map from
@@ -84,6 +108,25 @@ export function renderableFromGameState(state: GameState, extras?: Partial<Rende
 
   const activeSmallIndex = state.nextBoardIndex
 
+  // Compute lightweight analysis (cheap: uses engine helpers and small-board evals)
+  const legalMoves = getLegalMoves(state)
+  let forcedBoard: number | null = null
+  if (state.nextBoardIndex !== null) {
+    const nb = state.nextBoardIndex
+    const st = evaluateSmall(state.bigBoard[nb]).status
+    if (st === 'Open') forcedBoard = nb
+  }
+
+  // Threat-line detection (2-in-a-row) for the current player only (cheap)
+  const threatLines: { board: number; a: number; b: number; target: number }[] = []
+  for (let sb = 0; sb < 9; sb++) {
+    // only consider open small-boards
+    const st = evaluateSmall(state.bigBoard[sb]).status
+    if (st !== 'Open') continue
+    const found = findTwoInRow(state.bigBoard[sb], state.currentPlayer)
+    for (const f of found) threatLines.push({ board: sb, a: f.cells[0], b: f.cells[1], target: f.target })
+  }
+
   return {
     bigBoard,
     smallBoardStatus,
@@ -91,6 +134,11 @@ export function renderableFromGameState(state: GameState, extras?: Partial<Rende
     lastMove: extras?.lastMove ?? null,
     currentPlayer: state.currentPlayer,
     hoverCell: extras?.hoverCell ?? null,
+    // include analysis and flag - extras may override analysisEnabled
+    analysisEnabled: extras?.analysisEnabled ?? false,
+    analysis: { forcedBoard, legalMoves, threatLines },
+    // include any UI settings snapshot passed through extras
+    settings: (extras as any)?.settings ?? undefined,
     ...(extras || {}),
   }
 }

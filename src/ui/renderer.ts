@@ -30,6 +30,38 @@ export function drawGameSurface(
   safeFillText('HUD Placeholder', boardSize / 2, hudHeight / 2 + 8);
   ctx.restore();
 
+  // Draw per-turn timer (if provided)
+  if (typeof (view as any).turnTimerRemainingMs !== 'undefined' && typeof (view as any).turnTimeoutMs === 'number') {
+    const rem = (view as any).turnTimerRemainingMs as number | null
+    const tout = (view as any).turnTimeoutMs as number
+    const running = !!(view as any).turnTimerRunning
+    const pct = rem === null ? 0 : Math.max(0, Math.min(1, rem / Math.max(1, tout)))
+    // Draw small circular progress at HUD left
+    const cx = 48
+    const cy = hudHeight / 2
+    const radius = 18
+    // background ring
+    ctx.save()
+    ctx.lineWidth = 6
+    ctx.strokeStyle = 'rgba(200,200,200,0.5)'
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    // progress arc
+    ctx.strokeStyle = running ? 'rgba(2,112,255,0.95)' : 'rgba(120,120,120,0.6)'
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct)
+    ctx.stroke()
+    // time text
+    ctx.fillStyle = '#222'
+    ctx.font = '12px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const sec = rem === null ? Math.ceil(tout / 1000) : Math.ceil(rem / 1000)
+    safeFillText(`${sec}s`, cx, cy)
+    ctx.restore()
+  }
+
   // If shake is active, apply translation to the board drawing region
   const shakeX = view.shake?.x ?? 0
   const shakeY = view.shake?.y ?? 0
@@ -121,6 +153,28 @@ export function drawGameSurface(
   }
   ctx.restore()
 
+  // Analysis overlays: forced-board highlight (board-level)
+  if ((view as any).analysisEnabled && (view as any).analysis) {
+    const analysis = (view as any).analysis as { forcedBoard: number | null; legalMoves: { board: number; cell: number }[] }
+    const fb = analysis.forcedBoard
+    if (typeof fb === 'number') {
+      const sbRow = Math.floor(fb / 3)
+      const sbCol = fb % 3
+      const x = sbCol * cellSize * 3
+      const y = hudHeight + sbRow * cellSize * 3
+      ctx.save()
+      ctx.translate(shakeX, shakeY)
+      // use intensity from settings if provided
+      const intensity = (view.settings && typeof view.settings.forcedBoardIntensity === 'number') ? view.settings.forcedBoardIntensity : 0.06
+      ctx.fillStyle = `rgba(34,139,34,${intensity})`
+      ctx.fillRect(x, y, cellSize * 3, cellSize * 3)
+      ctx.lineWidth = Math.max(1, 2 * intensity)
+      ctx.strokeStyle = `rgba(34,139,34,${Math.min(0.95, 0.92 + intensity)})`
+      ctx.strokeRect(x + 2, y + 2, cellSize * 3 - 4, cellSize * 3 - 4)
+      ctx.restore()
+    }
+  }
+
   // Draw thin cell separators on top so overlays don't hide lines
   ctx.save();
   ctx.strokeStyle = '#222';
@@ -136,6 +190,53 @@ export function drawGameSurface(
     ctx.stroke();
   }
   ctx.restore();
+
+  // Threat lines (2-in-a-row) - draw above separators but beneath last-move and cell marks
+  if ((view as any).analysisEnabled && (view as any).analysis && (view as any).analysis.threatLines) {
+    const threats = (view as any).analysis.threatLines as { board: number; a: number; b: number; target: number }[]
+    ctx.save()
+    ctx.translate(shakeX, shakeY)
+    // color for current player's threats
+    const col = 'rgba(255,140,0,0.9)'
+    ctx.strokeStyle = col
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    for (const t of threats) {
+      const sbRow = Math.floor(t.board / 3)
+      const sbCol = t.board % 3
+      const aRow = Math.floor(t.a / 3)
+      const aCol = t.a % 3
+      const bRow = Math.floor(t.b / 3)
+      const bCol = t.b % 3
+      const globalARow = sbRow * 3 + aRow
+      const globalACol = sbCol * 3 + aCol
+      const globalBRow = sbRow * 3 + bRow
+      const globalBCol = sbCol * 3 + bCol
+      const ax = globalACol * cellSize + cellSize / 2
+      const ay = hudHeight + globalARow * cellSize + cellSize / 2
+      const bx = globalBCol * cellSize + cellSize / 2
+      const by = hudHeight + globalBRow * cellSize + cellSize / 2
+      // draw line between the two occupied cells
+      ctx.beginPath()
+      ctx.moveTo(ax, ay)
+      ctx.lineTo(bx, by)
+      ctx.stroke()
+      // draw small target marker
+      const tRow = Math.floor(t.target / 3)
+      const tCol = t.target % 3
+      const globalTRow = sbRow * 3 + tRow
+      const globalTCol = sbCol * 3 + tCol
+      const tx = globalTCol * cellSize + cellSize / 2
+      const ty = hudHeight + globalTRow * cellSize + cellSize / 2
+      ctx.save()
+      ctx.fillStyle = 'rgba(255,140,0,0.18)'
+      ctx.beginPath()
+      ctx.arc(tx, ty, cellSize * 0.22, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    ctx.restore()
+  }
 
   // Draw cell-level marks (X/O) and last-move highlight + hover
   ctx.save()
@@ -162,8 +263,25 @@ export function drawGameSurface(
         ctx.restore()
       }
 
+      // Analysis: legal move marker (draw under last-move highlight)
+      if ((view as any).analysisEnabled && (view as any).analysis) {
+        const analysis = (view as any).analysis as { forcedBoard: number | null; legalMoves: { board: number; cell: number }[] }
+        const isLegal = analysis.legalMoves.some((m) => m.board === sb && m.cell === cell)
+        // don't draw markers in closed boards
+        const sbStatus = view.smallBoardStatus[sb]
+        if (isLegal && sbStatus.kind === 'open') {
+          ctx.save()
+          ctx.fillStyle = 'rgba(2,112,255,0.12)'
+          ctx.beginPath()
+          ctx.arc(cx, cy, cellSize * 0.16, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        }
+      }
+
       // Last move
-      if (view.lastMove && view.lastMove.smallIndex === sb && view.lastMove.cellIndex === cell) {
+      const showLast = view.settings?.showLastMoveHighlight ?? true
+      if (showLast && view.lastMove && view.lastMove.smallIndex === sb && view.lastMove.cellIndex === cell) {
         ctx.save()
         ctx.beginPath()
         ctx.fillStyle = 'rgba(255,200,0,0.18)'
