@@ -20,14 +20,22 @@ export function drawGameSurface(
   const { boardSize, hudHeight } = options;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-  // Draw HUD placeholder
+  // Draw HUD background
   ctx.save();
   ctx.fillStyle = '#fafafa';
   ctx.fillRect(0, 0, boardSize, hudHeight);
-  ctx.fillStyle = '#333';
-  ctx.font = '20px sans-serif';
-  ctx.textAlign = 'center';
-  safeFillText('HUD Placeholder', boardSize / 2, hudHeight / 2 + 8);
+  ctx.restore();
+
+  // Small status badges (right side)
+  ctx.save();
+  const analysisOn = !!((view as any).settings?.analysisEnabled ?? (view as any).analysisEnabled)
+  const aiOn = !!(view as any).aiEnabled
+  ctx.fillStyle = '#222';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'right';
+  const pad = 12
+  safeFillText(`AI: ${aiOn ? 'ON' : 'OFF'}`, boardSize - pad, hudHeight / 2 - 6)
+  safeFillText(`Analysis: ${analysisOn ? 'ON' : 'OFF'}`, boardSize - pad, hudHeight / 2 + 12)
   ctx.restore();
 
   // Draw per-turn timer (if provided)

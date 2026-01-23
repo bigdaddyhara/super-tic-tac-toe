@@ -13,6 +13,8 @@ import { GameState } from './types/game-types'
 import { getGameOverButtonRect, getReplayControlRects } from './ui/renderer'
 import { ReplayManager } from './ui/replay-manager'
 import { HistoryManager } from './ui/history-manager'
+import { TurnTimer } from './ui/turn-timer'
+import { loadSettings, saveSettings, SETTINGS_KEY } from './ui/settings'
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -34,7 +36,7 @@ let shakeStart: number | null = null
 let shakeDuration = 0
 let animatingMove: { smallIndex: number; cellIndex: number; start: number; duration: number } | null = null
 let boardWinAnim: { smallIndex: number; start: number; duration: number } | null = null
-let aiEnabled = false
+let aiEnabled = !!(settings as any).aiEnabled
 let aiPlayer: 'O' | 'X' = 'O'
 const replay = new ReplayManager()
 const history = new HistoryManager()
@@ -42,12 +44,7 @@ const history = new HistoryManager()
 if (replay.entries.length === 0) replay.push(createNewGame(), undefined)
 let inReplayMode = false
 // settings (persisted)
-const SETTINGS_KEY = 'sut_settings_v1'
-let settings = { animations: true }
-try {
-	const raw = localStorage.getItem(SETTINGS_KEY)
-	if (raw) settings = JSON.parse(raw)
-} catch (e) {}
+let settings = loadSettings({ animations: true })
 
 // (settings defaults will be initialized after TurnTimer is created)
 // hover smoothing state
@@ -55,82 +52,7 @@ let hoverTarget: { smallIndex: number; cellIndex: number } | null = null
 let hoverDisplay: { smallIndex: number; cellIndex: number; alpha: number } | null = null
 let lastFrameTime = performance.now()
 
-// TurnTimer: lightweight wall-clock timer keyed by turn epoch to avoid races
-class TurnTimer {
-	private timeoutMs: number
-	private expireHandle: ReturnType<typeof setTimeout> | null = null
-	private startTs: number | null = null
-	private endTs: number | null = null
-	private running = false
-	private epoch = 0
-	constructor(timeoutMs: number) {
-		this.timeoutMs = timeoutMs
-	}
-	setTimeoutMs(ms: number) {
-		this.timeoutMs = ms
-	}
-	startForPlayer(playerId: string, onExpire: (epoch: number, expectedPlayer: string) => void) {
-		this.stop()
-		this.epoch += 1
-		const myEpoch = this.epoch
-		this.startTs = Date.now()
-		this.endTs = this.startTs + this.timeoutMs
-		this.running = true
-		this.expireHandle = setTimeout(() => {
-			// call expire with epoch check
-			onExpire(myEpoch, playerId)
-		}, this.timeoutMs)
-	}
-	stop() {
-		if (this.expireHandle) clearTimeout(this.expireHandle as any)
-		this.expireHandle = null
-		this.startTs = null
-		this.endTs = null
-		this.running = false
-	}
-	pause() {
-		if (!this.running || this.startTs === null || this.endTs === null) return
-		const remaining = Math.max(0, this.endTs - Date.now())
-		this.stop()
-		this.endTs = Date.now() + remaining
-		// store remaining in startTs temporarily
-		this.startTs = Date.now()
-		this.running = false
-		// keep epoch the same so resume continues correctly
-	}
-	resumeForEpoch(epoch: number, onExpire: (epoch: number, expectedPlayer: string) => void, expectedPlayer: string) {
-		// resume using existing endTs if present
-		if (this.running) return
-		const now = Date.now()
-		const remaining = this.endTs ? Math.max(0, this.endTs - now) : this.timeoutMs
-		this.epoch = epoch
-		this.startTs = now
-		this.endTs = now + remaining
-		this.running = true
-		this.expireHandle = setTimeout(() => onExpire(this.epoch, expectedPlayer), remaining)
-	}
-	getRemainingMs() {
-		if (!this.running || this.endTs === null) return null
-		return Math.max(0, this.endTs - Date.now())
-	}
-	isRunning() { return this.running }
-	currentEpoch() { return this.epoch }
-
-	// restore timer from a snapshot: remainingMs may be null (means full timeout)
-	restoreSnapshot(snapshot: { remainingMs: number | null; running: boolean } | undefined, expectedPlayer: string, onExpire: (epoch: number, expectedPlayer: string) => void) {
-		this.stop()
-		if (!snapshot) return
-		const rem = snapshot.remainingMs !== null && snapshot.remainingMs !== undefined ? snapshot.remainingMs : this.timeoutMs
-		this.epoch += 1
-		this.startTs = Date.now()
-		this.endTs = this.startTs + rem
-		this.running = !!snapshot.running
-		if (this.running) {
-			const myEpoch = this.epoch
-			this.expireHandle = setTimeout(() => onExpire(myEpoch, expectedPlayer), rem)
-		}
-	}
-}
+// TurnTimer implementation moved to src/ui/turn-timer.ts
 
 const turnTimer = new TurnTimer((settings as any).turnTimeoutMs)
 
@@ -345,7 +267,7 @@ if (!isTouch) {
 		analInp.addEventListener('change', () => {
 			(settings as any).analysisEnabled = analInp.checked
 			analysisEnabled = analInp.checked
-			saveSettings()
+			saveSettings(settings)
 		})
 		const analLabel2 = document.createElement('label')
 		analLabel2.htmlFor = 'settings-analysis'
@@ -390,9 +312,8 @@ if (!isTouch) {
 						if (isLegalMove(gameState, mv)) applyMoveIntent({ board: mv.board, cell: mv.cell })
 					})
 				}
-			}
-			saveSettings()
-		})
+				saveSettings(settings)
+			})
 		const timerLabel = document.createElement('label')
 		timerLabel.htmlFor = 'settings-timer'
 		timerChk.id = 'settings-timer'
@@ -410,7 +331,7 @@ if (!isTouch) {
 			(settings as any).turnTimeoutSec = v;
 			(settings as any).turnTimeoutMs = v * 1000;
 			turnTimer.setTimeoutMs(v * 1000);
-			saveSettings();
+			saveSettings(settings);
 		})
 		timerRow.appendChild(secondsInput)
 		timerField.appendChild(timerRow)
@@ -433,7 +354,7 @@ if (!isTouch) {
 		expirySelect.appendChild(opt1)
 		expirySelect.appendChild(opt2)
 		expirySelect.value = (settings as any).autoExpiryBehavior || 'auto-random'
-		expirySelect.addEventListener('change', () => { (settings as any).autoExpiryBehavior = expirySelect.value; saveSettings() })
+		expirySelect.addEventListener('change', () => { (settings as any).autoExpiryBehavior = expirySelect.value; saveSettings(settings) })
 		expiryRow.appendChild(expiryLabel)
 		expiryRow.appendChild(expirySelect)
 		settingsModal.appendChild(expiryRow)
@@ -444,8 +365,10 @@ if (!isTouch) {
 		const lastMoveChk = document.createElement('input')
 		lastMoveChk.type = 'checkbox'
 		lastMoveChk.checked = !!(settings as any).showLastMoveHighlight
-		lastMoveChk.addEventListener('change', () => { (settings as any).showLastMoveHighlight = lastMoveChk.checked; saveSettings() })
+		lastMoveChk.id = 'settings-lastmove'
+		lastMoveChk.addEventListener('change', () => { (settings as any).showLastMoveHighlight = lastMoveChk.checked; saveSettings(settings) })
 		const lastMoveLabel = document.createElement('label')
+		lastMoveLabel.htmlFor = 'settings-lastmove'
 		lastMoveLabel.appendChild(lastMoveChk)
 		lastMoveLabel.appendChild(document.createTextNode(' Show last-move highlight'))
 		visualRow.appendChild(lastMoveLabel)
@@ -453,27 +376,52 @@ if (!isTouch) {
 
 		const forceRow = document.createElement('div')
 		const forceLabel = document.createElement('label')
+		forceLabel.htmlFor = 'settings-force'
 		forceLabel.textContent = 'Forced-board intensity: '
 		const forceRange = document.createElement('input')
 		forceRange.type = 'range'
 		forceRange.min = '0'
 		forceRange.max = '1'
 		forceRange.step = '0.01'
+		forceRange.id = 'settings-force'
 		forceRange.value = String((settings as any).forcedBoardIntensity ?? 0.06)
-		forceRange.addEventListener('input', () => { (settings as any).forcedBoardIntensity = parseFloat(forceRange.value); saveSettings() })
+		forceRange.addEventListener('input', () => { (settings as any).forcedBoardIntensity = parseFloat(forceRange.value); saveSettings(settings) })
 		forceRow.appendChild(forceLabel)
 		forceRow.appendChild(forceRange)
 		settingsModal.appendChild(forceRow)
 
-		// Keyboard help link
+		// Keyboard help (inline, accessible)
 		const helpRow = document.createElement('div')
 		helpRow.style.marginTop = '12px'
 		const helpBtn = document.createElement('button')
 		helpBtn.textContent = 'Keyboard shortcuts'
+		helpBtn.setAttribute('aria-expanded', 'false')
+		helpBtn.setAttribute('aria-controls', 'settings-keyboard-help')
+		const helpPanel = document.createElement('section')
+		helpPanel.id = 'settings-keyboard-help'
+		helpPanel.style.display = 'none'
+		helpPanel.setAttribute('aria-hidden', 'true')
+		helpPanel.style.marginTop = '8px'
+		helpPanel.style.padding = '8px'
+		helpPanel.style.border = '1px solid rgba(0,0,0,0.06)'
+		helpPanel.innerHTML = `
+			<strong>Keyboard shortcuts</strong>
+			<ul>
+				<li><strong>n</strong> — New game</li>
+				<li><strong>a</strong> — Toggle AI</li>
+				<li><strong>r</strong> — Retry (when game over)</li>
+				<li><strong>y</strong> — Toggle analysis overlays</li>
+				<li><strong>Ctrl/Cmd+Z</strong> — Undo</li>
+				<li><strong>Ctrl/Cmd+Shift+Z</strong> / <strong>Ctrl/Cmd+Y</strong> — Redo</li>
+			</ul>`
 		helpBtn.addEventListener('click', () => {
-			alert('Shortcuts:\n n = new game\n a = toggle AI\n r = retry when game over\n y = toggle analysis\n Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y = redo')
+			const expanded = helpBtn.getAttribute('aria-expanded') === 'true'
+			helpBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true')
+			helpPanel.style.display = expanded ? 'none' : 'block'
+			helpPanel.setAttribute('aria-hidden', expanded ? 'true' : 'false')
 		})
 		helpRow.appendChild(helpBtn)
+		helpRow.appendChild(helpPanel)
 		settingsModal.appendChild(helpRow)
 
 		// Close button
@@ -534,12 +482,6 @@ if (!isTouch) {
 		settingsModal = null
 	}
 
-	function saveSettings() {
-		try {
-			localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-		} catch (e) {}
-	}
-
 	// Add Settings button to debug overlay (desktop only)
 	if (!isTouch) {
 		const settingsBtn = document.createElement('button')
@@ -586,10 +528,22 @@ function applyMoveIntent(move: { board: number; cell: number }) {
   }
 
   try {
-	const result = engineApplyMove(gameState, move)
-	gameState = result.nextState
-	// append to replay manager with a timer snapshot
-	replay.push(gameState, { board: move.board, cell: move.cell }, { timer: { remainingMs: turnTimer.getRemainingMs(), running: turnTimer.isRunning(), timeoutMs: (settings as any).turnTimeoutMs } })
+		// capture previous snapshot for history before mutating
+		const prevSnap = makeSnapshotForHistory(gameState, lastMove ? { board: lastMove.smallIndex, cell: lastMove.cellIndex } : undefined)
+
+		const result = engineApplyMove(gameState, move)
+		gameState = result.nextState
+
+		// build after snapshot and push to history (prev -> after)
+		const afterSnap = makeSnapshotForHistory(gameState, { board: move.board, cell: move.cell })
+		try {
+			history.push(prevSnap, afterSnap)
+		} catch (e) {
+			console.warn('History push failed:', e)
+		}
+
+		// append to replay manager with a timer snapshot
+		replay.push(gameState, { board: move.board, cell: move.cell }, { timer: { remainingMs: turnTimer.getRemainingMs(), running: turnTimer.isRunning(), timeoutMs: (settings as any).turnTimeoutMs } })
     lastMove = { smallIndex: move.board, cellIndex: move.cell }
     animatingMove = { smallIndex: move.board, cellIndex: move.cell, start: performance.now(), duration: 420 }
     setTimeout(() => (animatingMove = null), 520)
@@ -784,7 +738,7 @@ function renderLoop() {
 	const hoverCell = hoverDisplay ? { smallIndex: hoverDisplay.smallIndex, cellIndex: hoverDisplay.cellIndex } : null
 	const hoverAlpha = hoverDisplay ? hoverDisplay.alpha : 0
 	const historyEntries = replay.entries.map((e) => ({ move: e.move, ts: e.ts }))
-	const vm = getRenderableState(displayedState, { hoverCell, hoverAlpha, lastMove: lastMove ? { smallIndex: lastMove.smallIndex, cellIndex: lastMove.cellIndex } : null, illegal, gameOver, winner, draw, shake, animatingMove: settings.animations ? animatingMove : null, boardWinAnim: settings.animations ? boardWinAnim : null, replayAvailable: replay.entries.length > 0, inReplayMode, replayIndex: replay.index, historyLength: replay.entries.length, historyEntries, replayPlaying: replay.playing, replaySpeedMs: replay.speedMs, analysisEnabled, turnTimerRemainingMs: turnTimer.getRemainingMs(), turnTimerRunning: turnTimer.isRunning(), turnTimeoutMs: (settings as any).turnTimeoutMs, settings: (settings as any) })
+	const vm = getRenderableState(displayedState, { hoverCell, hoverAlpha, lastMove: lastMove ? { smallIndex: lastMove.smallIndex, cellIndex: lastMove.cellIndex } : null, illegal, gameOver, winner, draw, shake, animatingMove: settings.animations ? animatingMove : null, boardWinAnim: settings.animations ? boardWinAnim : null, replayAvailable: replay.entries.length > 0, inReplayMode, replayIndex: replay.index, historyLength: replay.entries.length, historyEntries, replayPlaying: replay.playing, replaySpeedMs: replay.speedMs, analysisEnabled, aiEnabled, turnTimerRemainingMs: turnTimer.getRemainingMs(), turnTimerRunning: turnTimer.isRunning(), turnTimeoutMs: (settings as any).turnTimeoutMs, settings: (settings as any) })
 	drawGameSurface(ctx, { boardSize, hudHeight }, vm)
 	requestAnimationFrame(renderLoop)
 }
@@ -803,6 +757,8 @@ window.addEventListener('keydown', (e) => {
 		input.attach()
 	} else if (e.key === 'a') {
 		aiEnabled = !aiEnabled
+		(settings as any).aiEnabled = aiEnabled
+		saveSettings(settings)
 		console.log('AI enabled:', aiEnabled)
 		// if enabling AI and it's AI's turn, trigger
 		setTimeout(() => tryAiTurn(), 50)
