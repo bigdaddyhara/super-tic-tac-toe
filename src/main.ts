@@ -14,10 +14,80 @@ import { getGameOverButtonRect, getReplayControlRects } from './ui/renderer'
 import { ReplayManager } from './ui/replay-manager'
 import { HistoryManager } from './ui/history-manager'
 import { TurnTimer } from './ui/turn-timer'
+import { startAIMove } from './ui/ai-manager'
+import { cancelAIMove } from './ui/ai-manager'
+import { getWorkerPool, setWorkerPoolSize, getConfiguredPoolSize } from './ai/worker-pool'
 import { loadSettings, saveSettings, SETTINGS_KEY } from './ui/settings'
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+
+// Create a small AI thinking indicator badge in the UI
+const appRoot = document.getElementById('app') as HTMLElement | null
+let aiThinkingIndicator: HTMLDivElement | null = null
+if (appRoot) {
+	try {
+		appRoot.style.position = appRoot.style.position || 'relative'
+		aiThinkingIndicator = document.createElement('div')
+		aiThinkingIndicator.id = 'ai-thinking-indicator'
+		aiThinkingIndicator.setAttribute('role', 'status')
+		aiThinkingIndicator.setAttribute('aria-live', 'polite')
+		aiThinkingIndicator.style.position = 'absolute'
+		aiThinkingIndicator.style.top = '12px'
+		aiThinkingIndicator.style.right = '12px'
+		aiThinkingIndicator.style.padding = '6px 10px'
+		aiThinkingIndicator.style.background = 'rgba(6,182,212,0.12)'
+		aiThinkingIndicator.style.color = '#06b6d4'
+		aiThinkingIndicator.style.border = '1px solid rgba(6,182,212,0.18)'
+		aiThinkingIndicator.style.borderRadius = '8px'
+		aiThinkingIndicator.style.fontSize = '13px'
+		aiThinkingIndicator.style.backdropFilter = 'blur(4px)'
+		aiThinkingIndicator.style.pointerEvents = 'none'
+		aiThinkingIndicator.style.transition = 'opacity 160ms ease'
+		aiThinkingIndicator.style.opacity = '0'
+		aiThinkingIndicator.textContent = 'AI thinking...'
+		appRoot.appendChild(aiThinkingIndicator)
+	} catch (e) {
+		aiThinkingIndicator = null
+	}
+}
+
+// AI budget clamped badge (appears briefly when AI budget is reduced)
+let aiClampBadge: HTMLDivElement | null = null
+if (appRoot) {
+	try {
+		aiClampBadge = document.createElement('div')
+		aiClampBadge.id = 'ai-clamp-badge'
+		aiClampBadge.style.position = 'absolute'
+		aiClampBadge.style.top = '48px'
+		aiClampBadge.style.right = '12px'
+		aiClampBadge.style.padding = '6px 10px'
+		aiClampBadge.style.background = 'rgba(255,165,0,0.12)'
+		aiClampBadge.style.color = '#ff8800'
+		aiClampBadge.style.border = '1px solid rgba(255,165,0,0.18)'
+		aiClampBadge.style.borderRadius = '8px'
+		aiClampBadge.style.fontSize = '12px'
+		aiClampBadge.style.backdropFilter = 'blur(4px)'
+		aiClampBadge.style.pointerEvents = 'none'
+		aiClampBadge.style.transition = 'opacity 160ms ease'
+		aiClampBadge.style.opacity = '0'
+		aiClampBadge.textContent = ''
+		appRoot.appendChild(aiClampBadge)
+	} catch (e) {
+		aiClampBadge = null
+	}
+}
+
+document.addEventListener('ai:budget-clamped', (ev: any) => {
+	try {
+		if (!aiClampBadge) return
+		const d = ev && ev.detail ? ev.detail : null
+		const ms = d && typeof d.effectiveMs === 'number' ? Math.round(d.effectiveMs) : null
+		aiClampBadge.textContent = ms !== null ? `AI time clamped to ${Math.round((ms / 1000) * 10) / 10}s` : 'AI time clamped'
+		aiClampBadge.style.opacity = '1'
+		setTimeout(() => { if (aiClampBadge) aiClampBadge.style.opacity = '0' }, 2500)
+	} catch (e) {}
+})
 
 // For now, just use fixed sizes matching the canvas
 const boardSize = 720;
@@ -59,11 +129,16 @@ const turnTimer = new TurnTimer((settings as any).turnTimeoutMs)
 // initialize new settings with defaults if missing (do this after turnTimer exists)
 if ((settings as any).turnTimeoutMs === undefined) (settings as any).turnTimeoutMs = 30000
 if ((settings as any).analysisEnabled === undefined) (settings as any).analysisEnabled = false
+if ((settings as any).aiDiagnosticsEnabled === undefined) (settings as any).aiDiagnosticsEnabled = false
+if ((settings as any).aiDiagnosticsStreaming === undefined) (settings as any).aiDiagnosticsStreaming = false
+if ((settings as any).aiDiagnosticsThrottleMs === undefined) (settings as any).aiDiagnosticsThrottleMs = 200
 if ((settings as any).turnTimerEnabled === undefined) (settings as any).turnTimerEnabled = false
 if ((settings as any).turnTimeoutSec === undefined) (settings as any).turnTimeoutSec = Math.round(((settings as any).turnTimeoutMs ?? 30000) / 1000)
 if ((settings as any).autoExpiryBehavior === undefined) (settings as any).autoExpiryBehavior = 'auto-random'
 if ((settings as any).showLastMoveHighlight === undefined) (settings as any).showLastMoveHighlight = true
 if ((settings as any).forcedBoardIntensity === undefined) (settings as any).forcedBoardIntensity = 0.06
+// AI difficulty default
+if ((settings as any).aiDifficulty === undefined) (settings as any).aiDifficulty = 'medium'
 
 // reflect analysisEnabled into our runtime flag
 // `analysisEnabled` will be initialized after its declaration below
@@ -87,7 +162,15 @@ input.onSelect((intent) => {
 
 // Undo/Redo helpers
 function makeSnapshotForHistory(state: GameState, move?: { board: number; cell: number }) {
-	return { state, move, ts: Date.now(), timer: { remainingMs: turnTimer.getRemainingMs(), running: turnTimer.isRunning(), timeoutMs: (settings as any).turnTimeoutMs } }
+		// compute short state id to allow diagnostics -> history mapping
+		let sid: string | undefined = undefined
+		try {
+			// lazy require to avoid circular import problems in some runtimes
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const s = require('./ai/serialize')
+			if (s && typeof s.stateIdFromState === 'function') sid = s.stateIdFromState(state as any)
+		} catch (e) {}
+		return { state, move, ts: Date.now(), stateId: sid, timer: { remainingMs: turnTimer.getRemainingMs(), running: turnTimer.isRunning(), timeoutMs: (settings as any).turnTimeoutMs } }
 }
 
 function performUndo() {
@@ -105,6 +188,8 @@ function performUndo() {
 	gameOver = (vm as any).gameOver ?? false
 	winner = (vm as any).winner ?? null
 	draw = (vm as any).draw ?? false
+	// cancel any in-flight AI thinking
+	try { cancelAIMove() } catch (e) {}
 	// restore timer
 	// restore timer snapshot
 	turnTimer.restoreSnapshot(prev.timer, gameState.currentPlayer, (epoch, expectedPlayer) => {
@@ -166,6 +251,62 @@ recentList.style.maxHeight = '140px'
 recentList.style.overflow = 'auto'
 debugOverlay.appendChild(recentList)
 
+// Pool instrumentation UI
+const poolStats = document.createElement('div')
+poolStats.style.marginTop = '8px'
+poolStats.style.fontSize = '12px'
+debugOverlay.appendChild(poolStats)
+
+function updatePoolStats() {
+	try {
+		const mctsPool = getWorkerPool('./mcts.worker.ts')
+		const explainPool = getWorkerPool('./explain.worker.ts')
+		const mctsStats = mctsPool && (mctsPool as any).getStats ? (mctsPool as any).getStats() : null
+		const exStats = explainPool && (explainPool as any).getStats ? (explainPool as any).getStats() : null
+		poolStats.innerHTML = `MCTS: ${mctsStats ? `${mctsStats.workers} workers, ${mctsStats.tasksRun} run, ${mctsStats.tasksFailed} failed` : 'n/a'}<br>Explain: ${exStats ? `${exStats.workers} workers, ${exStats.tasksRun} run, ${exStats.tasksFailed} failed` : 'n/a'}`
+	} catch (e) {
+		poolStats.textContent = 'Pool stats unavailable'
+	}
+}
+setInterval(updatePoolStats, 1000)
+updatePoolStats()
+
+// Controls to override pool sizes for debug/tuning
+const poolControlWrap = document.createElement('div')
+poolControlWrap.style.marginTop = '8px'
+poolControlWrap.style.display = 'flex'
+poolControlWrap.style.flexDirection = 'column'
+
+function mkControl(labelText: string, workerPath: string) {
+	const row = document.createElement('div')
+	row.style.display = 'flex'
+	row.style.gap = '6px'
+	const lbl = document.createElement('label')
+	lbl.textContent = labelText
+	lbl.style.fontSize = '12px'
+	const inp = document.createElement('input') as HTMLInputElement
+	inp.type = 'number'
+	inp.min = '0'
+	inp.value = String(getConfiguredPoolSize(workerPath))
+	inp.style.width = '56px'
+	const btn = document.createElement('button')
+	btn.textContent = 'Apply'
+	btn.addEventListener('click', () => {
+		const v = Number(inp.value)
+		if (isNaN(v)) return
+		setWorkerPoolSize(workerPath, v)
+		updatePoolStats()
+	})
+	row.appendChild(lbl)
+	row.appendChild(inp)
+	row.appendChild(btn)
+	return row
+}
+
+poolControlWrap.appendChild(mkControl('MCTS workers', './mcts.worker.ts'))
+poolControlWrap.appendChild(mkControl('Explain workers', './explain.worker.ts'))
+debugOverlay.appendChild(poolControlWrap)
+
 // Undo / Redo buttons
 const undoBtn = document.createElement('button')
 undoBtn.textContent = 'Undo'
@@ -204,6 +345,16 @@ let analysisEnabled = false
 // apply persisted preference
 analysisEnabled = !!(settings as any).analysisEnabled
 
+// diagnostics snapshot (latest) — stored when AI emits `ai:analysisSnapshot`
+let latestAIDiagnostics: any = null
+document.addEventListener('ai:analysisSnapshot', (ev: any) => {
+	try {
+		latestAIDiagnostics = ev && ev.detail ? ev.detail.diagnostics : null
+		// request a render so UI picks up diagnostics if enabled
+		try { requestAnimationFrame(renderLoop) } catch (e) {}
+	} catch (e) {}
+})
+
 // Add a small checkbox to debug overlay to toggle Analysis (desktop-only)
 const isTouch = (navigator as any).maxTouchPoints ? (navigator as any).maxTouchPoints > 0 : ('ontouchstart' in window)
 if (!isTouch) {
@@ -219,6 +370,27 @@ if (!isTouch) {
 		analysisEnabled = !!analChk.checked
 		console.log('Analysis mode:', analysisEnabled)
 	})
+
+	// Diagnostics toggle small checkbox in debug overlay
+	const diagChk = document.createElement('input')
+	diagChk.type = 'checkbox'
+	diagChk.checked = !!(settings as any).aiDiagnosticsEnabled
+	diagChk.addEventListener('change', () => {
+		(settings as any).aiDiagnosticsEnabled = !!diagChk.checked
+		saveSettings(settings)
+		console.log('AI diagnostics:', (settings as any).aiDiagnosticsEnabled)
+	})
+	const diagLabel = document.createElement('span')
+	diagLabel.textContent = ' Diagnostics'
+	diagLabel.style.fontSize = '12px'
+	const diagWrap = document.createElement('label')
+	diagWrap.style.display = 'flex'
+	diagWrap.style.alignItems = 'center'
+	diagWrap.style.gap = '6px'
+	diagWrap.style.marginTop = '6px'
+	diagWrap.appendChild(diagChk)
+	diagWrap.appendChild(diagLabel)
+	debugOverlay.appendChild(diagWrap)
 	const txt = document.createElement('span')
 	txt.textContent = 'Analysis'
 	txt.style.fontSize = '12px'
@@ -267,8 +439,58 @@ if (!isTouch) {
 		analInp.addEventListener('change', () => {
 			(settings as any).analysisEnabled = analInp.checked
 			analysisEnabled = analInp.checked
+				saveSettings(settings)
+			});
+
+		// AI diagnostics toggle in settings modal
+		const diagSettingChk = document.createElement('input')
+		diagSettingChk.type = 'checkbox'
+		diagSettingChk.checked = !!(settings as any).aiDiagnosticsEnabled
+		diagSettingChk.id = 'settings-ai-diagnostics'
+		diagSettingChk.addEventListener('change', () => {
+			(settings as any).aiDiagnosticsEnabled = diagSettingChk.checked
 			saveSettings(settings)
 		})
+		const diagSettingLabel = document.createElement('label')
+		diagSettingLabel.htmlFor = 'settings-ai-diagnostics'
+		diagSettingLabel.appendChild(diagSettingChk)
+		diagSettingLabel.appendChild(document.createTextNode(' Enable AI diagnostics (Analysis mode overlay)'))
+		settingsModal.appendChild(diagSettingLabel)
+
+		// Advanced diagnostics streaming controls
+		const advField = document.createElement('fieldset')
+		advField.style.marginTop = '8px'
+		const advLegend = document.createElement('legend')
+		advLegend.textContent = 'Diagnostics (advanced)'
+		advField.appendChild(advLegend)
+		const streamRow = document.createElement('div')
+		const streamChk = document.createElement('input')
+		streamChk.type = 'checkbox'
+		streamChk.checked = !!(settings as any).aiDiagnosticsStreaming
+		streamChk.id = 'settings-ai-diagnostics-stream'
+		streamChk.addEventListener('change', () => { (settings as any).aiDiagnosticsStreaming = streamChk.checked; saveSettings(settings) })
+		const streamLabel = document.createElement('label')
+		streamLabel.htmlFor = 'settings-ai-diagnostics-stream'
+		streamLabel.appendChild(streamChk)
+		streamLabel.appendChild(document.createTextNode(' Enable streaming diagnostics (throttled)'))
+		streamRow.appendChild(streamLabel)
+		advField.appendChild(streamRow)
+
+		const throttleRow = document.createElement('div')
+		throttleRow.style.marginTop = '6px'
+		const throttleLabel = document.createElement('label')
+		throttleLabel.textContent = 'Diagnostics throttle ms: '
+		const throttleInp = document.createElement('input') as HTMLInputElement
+		throttleInp.type = 'number'
+		throttleInp.min = '0'
+		throttleInp.value = String((settings as any).aiDiagnosticsThrottleMs || 200)
+		throttleInp.style.width = '80px'
+		throttleInp.addEventListener('change', () => { const v = Math.max(0, Math.floor(Number(throttleInp.value || '200'))); (settings as any).aiDiagnosticsThrottleMs = v; saveSettings(settings) })
+		throttleLabel.appendChild(throttleInp)
+		throttleRow.appendChild(throttleLabel)
+		advField.appendChild(throttleRow)
+
+		settingsModal.appendChild(advField)
 		const analLabel2 = document.createElement('label')
 		analLabel2.htmlFor = 'settings-analysis'
 		analLabel2.appendChild(document.createTextNode(' Show analysis overlays'))
@@ -312,8 +534,9 @@ if (!isTouch) {
 						if (isLegalMove(gameState, mv)) applyMoveIntent({ board: mv.board, cell: mv.cell })
 					})
 				}
-				saveSettings(settings)
-			})
+			}
+			saveSettings(settings)
+		})
 		const timerLabel = document.createElement('label')
 		timerLabel.htmlFor = 'settings-timer'
 		timerChk.id = 'settings-timer'
@@ -336,6 +559,31 @@ if (!isTouch) {
 		timerRow.appendChild(secondsInput)
 		timerField.appendChild(timerRow)
 		settingsModal.appendChild(timerField)
+
+		// AI difficulty selector
+		const aiField = document.createElement('fieldset')
+		aiField.style.marginBottom = '12px'
+		const aiLegend = document.createElement('legend')
+		aiLegend.textContent = 'AI difficulty'
+		aiField.appendChild(aiLegend)
+		const aiRow = document.createElement('div')
+		const aiSelect = document.createElement('select')
+		aiSelect.id = 'settings-ai-difficulty'
+		const aiOpts = ['easy', 'medium', 'hard', 'insane', 'custom']
+		aiOpts.forEach((v) => {
+			const o = document.createElement('option')
+			o.value = v
+			o.textContent = v.charAt(0).toUpperCase() + v.slice(1)
+			aiSelect.appendChild(o)
+		})
+		aiSelect.value = (settings as any).aiDifficulty || 'medium'
+		aiSelect.addEventListener('change', () => {
+			(settings as any).aiDifficulty = aiSelect.value
+			saveSettings(settings)
+		})
+		aiRow.appendChild(aiSelect)
+		aiField.appendChild(aiRow)
+		settingsModal.appendChild(aiField)
 
 		// Auto-expiry behavior (part of timer group)
 		const expiryRow = document.createElement('div')
@@ -599,11 +847,52 @@ function tryAiTurn() {
 	if (gameState.currentPlayer !== aiPlayer) return
 	const moves = getLegalMoves(gameState)
 	if (moves.length === 0) return
-	// pick random
-	const mv = moves[Math.floor(Math.random() * moves.length)]
-	setTimeout(() => {
-		applyMoveIntent({ board: mv.board, cell: mv.cell })
-	}, 480)
+
+	// Start AI move using the ai-manager which ties into the TurnTimer and provides
+	// an AbortSignal when the timer expires. Show a small thinking delay to keep
+	// the UX consistent with the previous random-AI behavior.
+	const aiOptions = {
+		difficulty: (settings as any).aiDifficulty,
+		timeBudgetMs: (settings as any).turnTimeoutMs ?? undefined,
+		// seed could be added for reproducible matches: settings.aiSeed
+		seed: (settings as any).aiSeed ?? undefined,
+	}
+
+	// propagate diagnostics settings into AI run options
+	if ((settings as any).aiDiagnosticsEnabled) {
+		aiOptions.diagnosticsStreaming = !!(settings as any).aiDiagnosticsStreaming
+		aiOptions.diagnosticsThrottleMs = Number((settings as any).aiDiagnosticsThrottleMs) || 200
+	}
+
+	// indicate thinking in the debug overlay
+	const dbg = document.getElementById('debug-overlay')
+	if (dbg) dbg.textContent = `AI thinking... (${gameState.currentPlayer})`
+	if (aiThinkingIndicator) {
+		aiThinkingIndicator.textContent = `AI thinking... (${gameState.currentPlayer})`
+		aiThinkingIndicator.style.opacity = '1'
+	}
+
+	// call startAIMove; it starts the turn timer and returns the move promise
+	startAIMove(gameState, gameState.currentPlayer, turnTimer, aiOptions, (thinking) => {
+		if (aiThinkingIndicator) aiThinkingIndicator.style.opacity = thinking ? '1' : '0'
+		if (!thinking) {
+			// restore debug overlay shortly after thinking stops
+			setTimeout(() => { if (dbg) dbg.textContent = hoverTarget ? `hover: b${hoverTarget.smallIndex} c${hoverTarget.cellIndex}` : 'hover: none' }, 120)
+		}
+	}).then((mv) => {
+		// apply move only if still legal and game not over
+		if (!gameOver && isLegalMove(gameState, mv)) {
+			// small delay to match previous pacing
+			setTimeout(() => applyMoveIntent({ board: mv.board, cell: mv.cell }), 200)
+		}
+	}).catch((err) => {
+		// on abort or error, fall back to a random move to keep game progressing
+		if (gameOver) return
+		const avail = getLegalMoves(gameState)
+		if (!avail || avail.length === 0) return
+		const fallback = avail[Math.floor(Math.random() * avail.length)]
+		if (isLegalMove(gameState, fallback)) setTimeout(() => applyMoveIntent({ board: fallback.board, cell: fallback.cell }), 200)
+	})
 }
 
 // invoke AI after moves where appropriate
@@ -621,6 +910,8 @@ canvas.addEventListener('click', (e) => {
 		if (!btn) return
 		if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
 			// reset
+			// cancel any in-flight AI thinking before resetting
+			try { cancelAIMove() } catch (e) {}
 			gameState = createNewGame()
 			lastMove = null
 			illegal = null
@@ -739,11 +1030,32 @@ function renderLoop() {
 	const hoverAlpha = hoverDisplay ? hoverDisplay.alpha : 0
 	const historyEntries = replay.entries.map((e) => ({ move: e.move, ts: e.ts }))
 	const vm = getRenderableState(displayedState, { hoverCell, hoverAlpha, lastMove: lastMove ? { smallIndex: lastMove.smallIndex, cellIndex: lastMove.cellIndex } : null, illegal, gameOver, winner, draw, shake, animatingMove: settings.animations ? animatingMove : null, boardWinAnim: settings.animations ? boardWinAnim : null, replayAvailable: replay.entries.length > 0, inReplayMode, replayIndex: replay.index, historyLength: replay.entries.length, historyEntries, replayPlaying: replay.playing, replaySpeedMs: replay.speedMs, analysisEnabled, aiEnabled, turnTimerRemainingMs: turnTimer.getRemainingMs(), turnTimerRunning: turnTimer.isRunning(), turnTimeoutMs: (settings as any).turnTimeoutMs, settings: (settings as any) })
+		// inject diagnostics into renderable when analysis+diagnostics enabled and diagnostics available
+		if (analysisEnabled && (settings as any).aiDiagnosticsEnabled && latestAIDiagnostics) {
+			// If we're viewing the live game state, attach latest diagnostics directly
+			if (displayedState === gameState && latestAIDiagnostics.stateId) {
+				;(vm as any).analysis = { ...(vm as any).analysis || {}, diagnostics: latestAIDiagnostics }
+			} else {
+				// If viewing a replay/history snapshot, try to match diagnostics by stateId
+				const entry = replay.currentEntry()
+				const histStateId = (entry && (entry as any).stateId) || null
+				if (histStateId && latestAIDiagnostics.stateId === histStateId) {
+					;(vm as any).analysis = { ...(vm as any).analysis || {}, diagnostics: latestAIDiagnostics }
+				}
+			}
+		}
 	drawGameSurface(ctx, { boardSize, hudHeight }, vm)
 	requestAnimationFrame(renderLoop)
 }
 
 renderLoop()
+
+// If explanation worker warms the cache, request an immediate render to pick up cached results.
+if (typeof window !== 'undefined') {
+	window.addEventListener('ai:explain-cache-updated', () => {
+		try { requestAnimationFrame(renderLoop) } catch (e) {}
+	})
+}
 
 // Keyboard shortcuts: 'n' New game, 'a' toggle AI, 'r' Retry when game over
 window.addEventListener('keydown', (e) => {
@@ -756,7 +1068,7 @@ window.addEventListener('keydown', (e) => {
 		draw = false
 		input.attach()
 	} else if (e.key === 'a') {
-		aiEnabled = !aiEnabled
+		aiEnabled = !aiEnabled;
 		(settings as any).aiEnabled = aiEnabled
 		saveSettings(settings)
 		console.log('AI enabled:', aiEnabled)

@@ -5,6 +5,8 @@ import { GameState } from '../types/game-types'
 import { evaluateSmall } from '../game/engine'
 import { getLegalMoves } from '../game/legal-moves'
 import { findTwoInRow } from '../game/win-detection'
+import { explainMove } from '../ai'
+import { explainMoves, getCachedExplanation } from '../ai/explain'
 
 export type CellValue = 'X' | 'O' | null
 
@@ -50,6 +52,10 @@ export interface RenderableState extends ReplayExtras {
     forcedBoard: number | null
     legalMoves: { board: number; cell: number }[]
     threatLines?: { board: number; a: number; b: number; target: number }[]
+    explanations?: { board: number; cell: number; explanation: { score?: number; reasons?: string[]; simulatedState?: any } | null }[]
+    bestExplanation?: { board: number; cell: number; explanation: { score?: number; reasons?: string[]; simulatedState?: any } | null }
+    // Optional AI diagnostics emitted after search
+    diagnostics?: any
   }
   // Turn timer UI fields
   turnTimerRemainingMs?: number | null
@@ -127,6 +133,37 @@ export function renderableFromGameState(state: GameState, extras?: Partial<Rende
     for (const f of found) threatLines.push({ board: sb, a: f.cells[0], b: f.cells[1], target: f.target })
   }
 
+  // Explanations for a subset of legal moves (worker-backed + cached): only when analysis enabled
+  const explanations: { board: number; cell: number; explanation: { score?: number; reasons?: string[]; simulatedState?: any } | null }[] = []
+  let bestExplanation: { board: number; cell: number; explanation: { score?: number; reasons?: string[]; simulatedState?: any } | null } | undefined = undefined
+  const wantExplanations = extras?.analysisEnabled ?? false
+  if (wantExplanations) {
+    const max = Math.min(12, legalMoves.length)
+    const subset = legalMoves.slice(0, max)
+    for (let i = 0; i < subset.length; i++) {
+      const mv = subset[i]
+      try {
+        const cached = getCachedExplanation(state, mv)
+        const exp = cached !== undefined ? cached : explainMove(state, mv)
+        const entry = { board: mv.board, cell: mv.cell, explanation: exp }
+        explanations.push(entry)
+        const sc = exp && typeof exp.score === 'number' ? exp.score : undefined
+        if (sc !== undefined) {
+          if (!bestExplanation || (bestExplanation.explanation && (bestExplanation.explanation.score ?? -Infinity) < sc)) {
+            bestExplanation = entry
+          }
+        }
+      } catch (e) {
+        // ignore explanation errors
+      }
+    }
+
+    // Warm worker-backed cache in background; ignore errors.
+    try {
+      void explainMoves(state, subset)
+    } catch (e) {}
+  }
+
   return {
     bigBoard,
     smallBoardStatus,
@@ -136,7 +173,7 @@ export function renderableFromGameState(state: GameState, extras?: Partial<Rende
     hoverCell: extras?.hoverCell ?? null,
     // include analysis and flag - extras may override analysisEnabled
     analysisEnabled: extras?.analysisEnabled ?? false,
-    analysis: { forcedBoard, legalMoves, threatLines },
+    analysis: { forcedBoard, legalMoves, threatLines, explanations: explanations.length ? explanations : undefined, bestExplanation: bestExplanation ?? undefined },
     // include any UI settings snapshot passed through extras
     settings: (extras as any)?.settings ?? undefined,
     ...(extras || {}),

@@ -1,3 +1,4 @@
+import { logEvent } from './instrumentation'
 // Canvas-only input controller: tracks mouse movement over the game canvas and
 // exposes the hovered small/cell index. No click-to-move behavior here (Part C).
 
@@ -100,7 +101,8 @@ export class CanvasInputController {
       return
     }
 
-    // debug log
+      // debug log + instrumentation
+      try { logEvent('input.hover', grid) } catch {}
     console.log('[input] hover', grid)
 
     this.hover = { smallIndex: grid.boardIndex, cellIndex: grid.cellIndex }
@@ -112,7 +114,8 @@ export class CanvasInputController {
     const grid = this.mapToGrid(x, y)
     if (!grid) return
 
-    console.log('[input] click', grid)
+      console.log('[input] click', grid)
+      try { logEvent('input.click', grid) } catch {}
 
     // Emit candidate select intent (no engine mutation here)
     const intent: SelectIntent = {

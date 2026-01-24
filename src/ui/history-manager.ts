@@ -6,6 +6,7 @@ export type HistorySnapshot = {
   move?: { board: number; cell: number }
   ts: number
   timer?: TimerSnapshot
+  stateId?: string
 }
 
 export class HistoryManager {

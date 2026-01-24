@@ -11,7 +11,10 @@
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "release:check": "npm run build && npm run typecheck && npm test",
+    "deploy:gh-pages": "npx gh-pages -d dist",
+    "deploy:gh-pages:subtree": "git subtree push --prefix dist origin gh-pages"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

@@ -7,6 +7,7 @@ export type HistoryEntry = {
   state: GameState
   move?: { board: number; cell: number }
   ts: number
+  stateId?: string
   analysis?: {
     forcedBoard: number | null
     legalMoves: { board: number; cell: number }[]
@@ -49,7 +50,15 @@ export class ReplayManager {
       const found = findTwoInRow(state.bigBoard[sb], state.currentPlayer)
       for (const f of found) threatLines.push({ board: sb, a: f.cells[0], b: f.cells[1], target: f.target })
     }
-    const entry: HistoryEntry = { state, move, ts: Date.now(), analysis: { forcedBoard, legalMoves, threatLines }, timer: opts?.timer }
+    // include a short state id for mapping diagnostics
+    let sid: string | undefined = undefined
+    try {
+      // lazy-import to avoid circular deps
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const s = require('../ai/serialize')
+      if (s && typeof s.stateIdFromState === 'function') sid = s.stateIdFromState(state)
+    } catch (e) {}
+    const entry: HistoryEntry = { state, move, ts: Date.now(), stateId: sid, analysis: { forcedBoard, legalMoves, threatLines }, timer: opts?.timer }
     this.entries.push(entry)
     this.save()
   }

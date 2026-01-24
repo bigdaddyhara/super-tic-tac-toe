@@ -7,6 +7,23 @@ export interface RendererOptions {
 
 import { RenderableState } from './view-model-adapter'
 import { easingProgress, now } from './animations'
+import tokens from './visual-tokens'
+
+function hexToRgba(hex: string, alpha: number) {
+  // Accept #rrggbb or #rgb
+  const h = hex.replace('#', '')
+  let r = 0, g = 0, b = 0
+  if (h.length === 3) {
+    r = parseInt(h[0] + h[0], 16)
+    g = parseInt(h[1] + h[1], 16)
+    b = parseInt(h[2] + h[2], 16)
+  } else if (h.length === 6) {
+    r = parseInt(h.substring(0, 2), 16)
+    g = parseInt(h.substring(2, 4), 16)
+    b = parseInt(h.substring(4, 6), 16)
+  }
+  return `rgba(${r},${g},${b},${alpha})`
+}
 
 export function drawGameSurface(
   ctx: CanvasRenderingContext2D,
@@ -37,6 +54,30 @@ export function drawGameSurface(
   safeFillText(`AI: ${aiOn ? 'ON' : 'OFF'}`, boardSize - pad, hudHeight / 2 - 6)
   safeFillText(`Analysis: ${analysisOn ? 'ON' : 'OFF'}`, boardSize - pad, hudHeight / 2 + 12)
   ctx.restore();
+
+  // Show top explanation when analysis enabled
+  if (analysisOn && (view as any).analysis && (view as any).analysis.bestExplanation) {
+    const be = (view as any).analysis.bestExplanation as { board: number; cell: number; explanation: { score?: number; reasons?: string[] } }
+    if (be && be.explanation) {
+      ctx.save()
+      const panelX = boardSize + 16
+      const panelY = 8
+      const panelW = 240
+      const panelH = 60
+      ctx.fillStyle = 'rgba(255,255,255,0.95)'
+      roundRect(ctx, panelX, panelY, panelW, panelH, 8, true, false)
+      ctx.fillStyle = '#111'
+      ctx.font = '12px sans-serif'
+      ctx.textAlign = 'left'
+      const title = `Top move: B${be.board} C${be.cell} (score ${Math.round(be.explanation.score ?? 0)})`
+      safeFillText(title, panelX + 8, panelY + 18)
+      if (be.explanation.reasons && be.explanation.reasons.length > 0) {
+        safeFillText(be.explanation.reasons[0], panelX + 8, panelY + 36)
+        if (be.explanation.reasons.length > 1) safeFillText(be.explanation.reasons[1], panelX + 8, panelY + 52)
+      }
+      ctx.restore()
+    }
+  }
 
   // Draw per-turn timer (if provided)
   if (typeof (view as any).turnTimerRemainingMs !== 'undefined' && typeof (view as any).turnTimeoutMs === 'number') {
@@ -84,8 +125,8 @@ export function drawGameSurface(
 
   // Draw outer board grid (9x9 for super ultimate tic-tac-toe)
   ctx.save();
-  ctx.strokeStyle = '#2a2a2a';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = tokens.colors.boardGrid;
+  ctx.lineWidth = tokens.strokes.cellLine;
   const cellSize = boardSize / 9;
   for (let i = 0; i <= 9; i++) {
     // Vertical lines
@@ -103,8 +144,8 @@ export function drawGameSurface(
 
   // Draw sub-board separators (thicker)
   ctx.save();
-  ctx.strokeStyle = '#0b0b0b';
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = tokens.colors.boardGridStrong;
+  ctx.lineWidth = tokens.strokes.subboardLine;
   for (let i = 0; i <= 9; i += 3) {
     ctx.beginPath();
     ctx.moveTo(i * cellSize, hudHeight);
@@ -151,10 +192,10 @@ export function drawGameSurface(
     // Active small board highlight
     if (view.activeSmallIndex === sb && status.kind === 'open') {
       ctx.save()
-      ctx.fillStyle = 'rgba(2,112,255,0.06)'
+      ctx.fillStyle = hexToRgba(tokens.colors.accent, 0.06)
       ctx.fillRect(x, y, cellSize * 3, cellSize * 3)
-      ctx.lineWidth = 3
-      ctx.strokeStyle = 'rgba(2,112,255,0.92)'
+      ctx.lineWidth = Math.max(2, tokens.strokes.subboardLine)
+      ctx.strokeStyle = hexToRgba(tokens.colors.accentStrong || tokens.colors.accent, 0.92)
       ctx.strokeRect(x + 2, y + 2, cellSize * 3 - 4, cellSize * 3 - 4)
       ctx.restore()
     }
@@ -174,10 +215,10 @@ export function drawGameSurface(
       ctx.translate(shakeX, shakeY)
       // use intensity from settings if provided
       const intensity = (view.settings && typeof view.settings.forcedBoardIntensity === 'number') ? view.settings.forcedBoardIntensity : 0.06
-      ctx.fillStyle = `rgba(34,139,34,${intensity})`
+      ctx.fillStyle = hexToRgba(tokens.colors.forced, Math.max(0, Math.min(1, intensity)))
       ctx.fillRect(x, y, cellSize * 3, cellSize * 3)
       ctx.lineWidth = Math.max(1, 2 * intensity)
-      ctx.strokeStyle = `rgba(34,139,34,${Math.min(0.95, 0.92 + intensity)})`
+      ctx.strokeStyle = hexToRgba(tokens.colors.accentStrong || tokens.colors.accent, Math.max(0, Math.min(1, Math.min(0.95, 0.92 + intensity))))
       ctx.strokeRect(x + 2, y + 2, cellSize * 3 - 4, cellSize * 3 - 4)
       ctx.restore()
     }
@@ -185,8 +226,8 @@ export function drawGameSurface(
 
   // Draw thin cell separators on top so overlays don't hide lines
   ctx.save();
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = tokens.colors.boardGrid;
+  ctx.lineWidth = tokens.strokes.cellLine;
   for (let i = 0; i <= 9; i++) {
     ctx.beginPath();
     ctx.moveTo(i * cellSize, hudHeight);
@@ -205,7 +246,7 @@ export function drawGameSurface(
     ctx.save()
     ctx.translate(shakeX, shakeY)
     // color for current player's threats
-    const col = 'rgba(255,140,0,0.9)'
+    const col = hexToRgba(tokens.colors.winLine, 0.9)
     ctx.strokeStyle = col
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
@@ -237,13 +278,63 @@ export function drawGameSurface(
       const tx = globalTCol * cellSize + cellSize / 2
       const ty = hudHeight + globalTRow * cellSize + cellSize / 2
       ctx.save()
-      ctx.fillStyle = 'rgba(255,140,0,0.18)'
+      ctx.fillStyle = hexToRgba(tokens.colors.winLine, 0.18)
       ctx.beginPath()
       ctx.arc(tx, ty, cellSize * 0.22, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
     }
     ctx.restore()
+  }
+
+  // AI diagnostics heatmap + top-N list (subtle)
+  if ((view as any).analysisEnabled && (view as any).settings?.aiDiagnosticsEnabled && (view as any).analysis && (view as any).analysis.diagnostics) {
+    try {
+      const diag = (view as any).analysis.diagnostics as any
+      const top = Array.isArray(diag.topMoves) ? diag.topMoves : []
+      // draw heatmap: circles at cell centers with alpha proportional to visits (normalized)
+      const maxVisits = top.reduce((m, t) => Math.max(m, t.visits || 0), 0) || 1
+      ctx.save()
+      ctx.translate(shakeX, shakeY)
+      for (const t of top) {
+        const sb = t.board
+        const cell = t.cell
+        const sbRow = Math.floor(sb / 3)
+        const sbCol = sb % 3
+        const cellRow = Math.floor(cell / 3)
+        const cellCol = cell % 3
+        const globalRow = sbRow * 3 + cellRow
+        const globalCol = sbCol * 3 + cellCol
+        const cx = globalCol * cellSize + cellSize / 2
+        const cy = hudHeight + globalRow * cellSize + cellSize / 2
+        const alpha = Math.max(0.06, Math.min(0.9, (t.visits || 0) / maxVisits * 0.9))
+        ctx.beginPath()
+        ctx.fillStyle = `rgba(200,40,40,${alpha.toFixed(3)})`
+        ctx.arc(cx, cy, cellSize * 0.36, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+
+      // top-N list panel
+      const panelX = boardSize + 16
+      const panelY = 80 + 80
+      const panelW = 240
+      const itemH = 18
+      ctx.save()
+      ctx.fillStyle = 'rgba(255,255,255,0.95)'
+      roundRect(ctx, panelX, panelY, panelW, Math.min(12, top.length) * itemH + 12, 8, true, false)
+      ctx.fillStyle = '#111'
+      ctx.font = '12px monospace'
+      ctx.textAlign = 'left'
+      for (let i = 0; i < Math.min(10, top.length); i++) {
+        const t = top[i]
+        const y = panelY + 8 + i * itemH
+        const label = `#${i + 1} B${t.board}C${t.cell}`
+        const stats = `${t.visits} visits ${Math.round((t.value ?? 0) * 100) / 100}`
+        safeFillText(label.padEnd(18) + stats, panelX + 8, y + 12)
+      }
+      ctx.restore()
+    } catch (e) {}
   }
 
   // Draw cell-level marks (X/O) and last-move highlight + hover
@@ -279,7 +370,7 @@ export function drawGameSurface(
         const sbStatus = view.smallBoardStatus[sb]
         if (isLegal && sbStatus.kind === 'open') {
           ctx.save()
-          ctx.fillStyle = 'rgba(2,112,255,0.12)'
+          ctx.fillStyle = hexToRgba(tokens.colors.accent, 0.12)
           ctx.beginPath()
           ctx.arc(cx, cy, cellSize * 0.16, 0, Math.PI * 2)
           ctx.fill()
@@ -292,7 +383,7 @@ export function drawGameSurface(
       if (showLast && view.lastMove && view.lastMove.smallIndex === sb && view.lastMove.cellIndex === cell) {
         ctx.save()
         ctx.beginPath()
-        ctx.fillStyle = 'rgba(255,200,0,0.18)'
+        ctx.fillStyle = tokens.colors.lastMove
         ctx.arc(cx, cy, cellSize * 0.35, 0, Math.PI * 2)
         ctx.fill()
         ctx.restore()

@@ -1,8 +1,46 @@
 :root{
-  --bg:#0f1720;
-  --panel:#0b1220;
-  --accent:#06b6d4;
-  --muted:#94a3b8;
+  /* Core palette */
+  --bg: #0f1720;
+  --panel: #0b1220;
+  --surface-2: #07121a;
+
+  /* Accent / highlights */
+  --accent: #3b82f6; /* primary accent */
+  --accent-strong: #2563eb; /* hover / active */
+  --muted: #94a3b8;
+
+  /* Grid / strokes */
+  --grid: rgba(255,255,255,0.08);
+  --grid-strong: rgba(255,255,255,0.14);
+
+  /* State fills */
+  --last-move: rgba(250,204,21,0.16);
+  --forced: rgba(99,102,241,0.12);
+  --win-overlay: rgba(249,115,22,0.08);
+  --win-line: #f97316;
+  --error: #ef4444;
+  --draw: #6b7280;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-base: 14px;
+  --font-size-small: 12px;
+  --font-size-label: 13px;
+  --font-size-banner: 20px;
+
+  /* Spacing & geometry */
+  --board-padding: 12px;
+  --cell-gap: 6px;
+  --subboard-gap: 10px;
+
+  /* Stroke widths */
+  --cell-line: 1px;
+  --subboard-line: 2.5px;
+  --win-line-width: 4px;
+
+  /* Motion */
+  --motion-fast: 80ms;
+  --motion-medium: 140ms;
 }
 html,body,#app{height:100%;}
 body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
@@ -15,6 +53,28 @@ body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,Segoe UI,Rob
 .placeholder .muted{color:var(--muted);margin:0;font-size:16px}
 
 .board-grid{display:grid;gap:8px}
+
+/* End-state banner and overlays */
+.endstate-banner{
+  position:fixed;
+  left:50%;
+  top:20px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:8px;
+  padding:10px 14px;
+  color:var(--panel);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.45);
+  transition:opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+  opacity:1;
+  z-index:2000;
+}
+.endstate-inner{font-size:var(--font-size-banner);font-weight:600;color:var(--panel)}
+.endstate-dismiss{background:var(--accent);color:#fff;border:0;padding:6px 8px;border-radius:6px;cursor:pointer}
+.endstate-dismiss:focus-visible{box-shadow:0 0 0 4px rgba(59,130,246,0.12)}
 
 /* Visible focus styles for keyboard users */
 :focus-visible {

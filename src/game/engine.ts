@@ -1,4 +1,5 @@
 import { MoveEvents } from '../types/events'
+import { logEvent } from '../ui/instrumentation'
 /**
  * @function applyMove
  * @description Applies a legal move to the current game state, returning the next state and a list of events.
@@ -157,6 +158,7 @@ export function isValidMove(state: GameState, move: Move): boolean {
  * Pure transition that applies a move and returns both the next state and a list of events.
  */
 export function applyMove(state: GameState, move: Move): { nextState: GameState, events: MoveEvents[] } {
+  try { logEvent('move.attempt', move) } catch {}
   const { board: smallIndex, cell: cellIndex } = move
   const events: MoveEvents[] = []
 
@@ -244,5 +246,6 @@ export function applyMove(state: GameState, move: Move): { nextState: GameState,
     winner,
   }
 
+  try { logEvent('move.result', { move, nextPlayer: nextState.currentPlayer, events }) } catch {}
   return { nextState, events }
 }
