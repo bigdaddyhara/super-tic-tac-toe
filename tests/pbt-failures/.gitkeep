@@ -1,0 +1,3 @@
+# This directory contains failure artifacts from PBT runs (gitignored).
+# Each .json file contains a complete failure report: seed, path, move sequence, state history.
+# Use these to reproduce failures and create regression tests.

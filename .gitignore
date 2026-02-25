@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+.DS_Store
+/.idea
+/.vscode
+*.log
+logs/
+
+# PBT failure artifacts (local debugging only)
+tests/pbt-failures/*.json
