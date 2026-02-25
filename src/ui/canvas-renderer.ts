@@ -133,7 +133,8 @@ export class CanvasRenderer {
       }
     }
 
-    if (highlightState.lastMove) {
+    const showLastMove = uiSettings.showLastMoveHighlight ?? true
+    if (highlightState.lastMove && showLastMove) {
       const rect = cellToPixelRect(highlightState.lastMove.board, highlightState.lastMove.cell, this.boardRect)
       const fadeDurationMs = 900
       const age = highlightState.lastMoveAgeMs ?? 0
@@ -143,10 +144,11 @@ export class CanvasRenderer {
     }
 
     if (highlightState.forcedBoard !== null && !highlightState.isFreeMove && uiSettings.showForcedBoard) {
+      const intensity = Math.max(0.1, Math.min(1, uiSettings.forcedBoardIntensity ?? 0.6))
       this.drawBoardBorder(
         highlightState.forcedBoard,
-        TOKENS.colors.forcedBoardBorder,
-        TOKENS.lineWidth.forcedBoardBorder,
+        this.withAlpha(TOKENS.colors.forcedBoardBorder, intensity),
+        Math.max(1, TOKENS.lineWidth.forcedBoardBorder * intensity),
       )
     }
 

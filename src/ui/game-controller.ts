@@ -14,6 +14,17 @@ import { HistoryManager } from './history-manager'
 import { updateButtonStates } from './replay-controls'
 import type { HUD } from './hud'
 import type { EndgameOverlay } from './endgame-overlay'
+import type { AIDifficulty } from './settings-types'
+
+interface TimerConfig {
+  enabled: boolean
+  secondsPerTurn: number
+}
+
+interface VisualOptions {
+  showLastMoveHighlight: boolean
+  forcedBoardIntensity: number
+}
 
 export class GameController {
   private state: GameState
@@ -31,6 +42,10 @@ export class GameController {
   private undoBtn: HTMLButtonElement | null = null
   private redoBtn: HTMLButtonElement | null = null
   private playerWins: { X: number; O: number } = { X: 0, O: 0 }
+  private analysisEnabled = false
+  private timerConfig: TimerConfig = { enabled: false, secondsPerTurn: 15 }
+  private aiDifficulty: AIDifficulty = 'medium'
+  private visualOptions: VisualOptions = { showLastMoveHighlight: true, forcedBoardIntensity: 0.6 }
 
   constructor(canvas: HTMLCanvasElement | null) {
     if (!canvas) {
@@ -147,8 +162,38 @@ export class GameController {
     this.scheduler.scheduleRender()
   }
 
+  setTimerConfig(config: TimerConfig): void {
+    this.timerConfig = {
+      enabled: Boolean(config.enabled),
+      secondsPerTurn: Math.max(5, Math.min(300, Math.round(config.secondsPerTurn))),
+    }
+    this.scheduler.scheduleRender()
+  }
+
+  setAnalysisEnabled(enabled: boolean): void {
+    this.analysisEnabled = Boolean(enabled)
+    this.scheduler.scheduleRender()
+  }
+
+  setAIDifficulty(difficulty: AIDifficulty): void {
+    this.aiDifficulty = difficulty
+  }
+
+  setVisualOptions(options: VisualOptions): void {
+    this.visualOptions = {
+      showLastMoveHighlight: options.showLastMoveHighlight,
+      forcedBoardIntensity: Math.max(0.1, Math.min(1, options.forcedBoardIntensity)),
+    }
+
+    this.setUISettings({
+      showLastMoveHighlight: this.visualOptions.showLastMoveHighlight,
+      forcedBoardIntensity: this.visualOptions.forcedBoardIntensity,
+    })
+  }
+
   applyPlayerMove(move: { board: BoardIndex; cell: CellIndex }): void {
     if (isGameOver(this.state) || getLegalMoves(this.state).length === 0) {
+      this.emitUIEvent('uttt:move-rejected', { reason: 'terminal' })
       return
     }
 
@@ -180,10 +225,12 @@ export class GameController {
           this.playerWins[winner] += 1
           this.hud?.update(stateAfter)
           this.endgameOverlay?.show(stateAfter)
+          this.emitUIEvent('uttt:game-over', { result: 'win', winner })
         },
         onDraw: (stateAfter) => {
           this.hud?.update(stateAfter)
           this.endgameOverlay?.show(stateAfter)
+          this.emitUIEvent('uttt:game-over', { result: 'draw', winner: null })
         },
       })
     } catch {
@@ -241,6 +288,7 @@ export class GameController {
   }
 
   private onIllegalMove(move: { board: BoardIndex; cell: CellIndex }): void {
+    this.emitUIEvent('uttt:move-rejected', { reason: 'illegal', move })
     this.renderer.flashIllegalMove(move)
     this.scheduler.scheduleRender()
     globalThis.setTimeout(() => {
@@ -254,6 +302,18 @@ export class GameController {
 
     try {
       window.dispatchEvent(new Event('history:changed'))
+    } catch {}
+  }
+
+  private emitUIEvent(name: string, detail?: unknown): void {
+    if (typeof window === 'undefined') return
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent(name, {
+          detail,
+        }),
+      )
     } catch {}
   }
 

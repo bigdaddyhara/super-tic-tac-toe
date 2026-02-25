@@ -7,53 +7,7 @@
     <link rel="icon" href="/favicon.ico" />
   </head>
   <body>
-    <div id="app">
-      <div id="hud" aria-label="Game heads-up display">
-        <div id="player-indicator" class="hud-chip player-x" aria-label="Current player">X to play</div>
-        <div id="turn-counter" class="hud-chip" aria-label="Turn counter">Move: 0</div>
-        <div id="constraint-indicator" class="hud-chip" aria-label="Constraint status">Free Move</div>
-        <div id="score" class="hud-chip" aria-label="Session score">X: 0 | O: 0</div>
-        <div id="history-controls" aria-label="History controls">
-          <button id="undo-btn" type="button" aria-label="Undo move" disabled>↩ Undo</button>
-          <button id="redo-btn" type="button" aria-label="Redo move" disabled>↪ Redo</button>
-        </div>
-        <button id="new-game-btn" type="button" aria-label="Start a new game">New Game</button>
-        <button id="settings-btn" type="button" aria-label="Open settings">⚙ Settings</button>
-      </div>
-
-      <canvas
-        id="game-canvas"
-        width="720"
-        height="800"
-        tabindex="0"
-        role="application"
-        aria-label="Super Tic-Tac-Toe board"
-      ></canvas>
-
-      <div id="endgame-overlay" hidden aria-live="polite" aria-label="Game result overlay">
-        <div id="endgame-message">Game Over</div>
-        <button id="play-again-btn" type="button" aria-label="Play again">Play Again</button>
-      </div>
-
-      <div id="settings-panel" hidden aria-label="Settings panel">
-        <label>
-          <input type="checkbox" id="toggle-legal-moves" aria-label="Toggle legal move highlights" checked />
-          Show legal moves
-        </label>
-        <label>
-          <input type="checkbox" id="toggle-forced-board" aria-label="Toggle forced board highlight" checked />
-          Highlight forced board
-        </label>
-        <label>
-          Game mode
-          <select id="game-mode-select" aria-label="Game mode">
-            <option value="hvh">Human vs Human</option>
-            <option value="hva">Human vs AI (stub)</option>
-          </select>
-        </label>
-        <button id="close-settings-btn" type="button" aria-label="Close settings">Close</button>
-      </div>
-    </div>
+    <uttt-app></uttt-app>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

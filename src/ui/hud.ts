@@ -11,13 +11,16 @@ export class HUD {
   private readonly undoBtn: HTMLButtonElement | null
   private readonly redoBtn: HTMLButtonElement | null
 
-  constructor(private readonly controller: GameController) {
-    this.playerIndicator = document.getElementById('player-indicator')
-    this.turnCounter = document.getElementById('turn-counter')
-    this.constraintIndicator = document.getElementById('constraint-indicator')
-    this.scoreEl = document.getElementById('score')
-    this.undoBtn = document.getElementById('undo-btn') as HTMLButtonElement | null
-    this.redoBtn = document.getElementById('redo-btn') as HTMLButtonElement | null
+  constructor(
+    private readonly controller: GameController,
+    root: Document | ShadowRoot = document,
+  ) {
+    this.playerIndicator = root.getElementById('player-indicator')
+    this.turnCounter = root.getElementById('turn-counter')
+    this.constraintIndicator = root.getElementById('constraint-indicator')
+    this.scoreEl = root.getElementById('score')
+    this.undoBtn = root.getElementById('undo-btn') as HTMLButtonElement | null
+    this.redoBtn = root.getElementById('redo-btn') as HTMLButtonElement | null
   }
 
   update(state: GameState): void {

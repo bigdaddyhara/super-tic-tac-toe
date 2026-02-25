@@ -2,6 +2,8 @@ export interface UISettings {
   showLegalMoves: boolean
   showForcedBoard: boolean
   gameMode: 'hvh' | 'hva'
+  showLastMoveHighlight?: boolean
+  forcedBoardIntensity?: number
 }
 
 export const SETTINGS_STORAGE_KEY = 'uttt-ui-settings'
