@@ -20,7 +20,7 @@ self.onmessage = async (ev: MessageEvent) => {
       try { state = deserializeState(msg.state) } catch (e) { state = msg.state }
       const rng = msg.seed != null ? createSeededRng(msg.seed) : Math.random
       try {
-        const res = await mctsCoreChooseMove(state, msg.options, rng as any, ctrl.signal)
+        const res = await mctsCoreChooseMove(state as any, msg.options, rng as any, ctrl.signal)
         // normalize move result
         const move = (res && typeof res === 'object' && 'move' in res) ? res.move : res
         const stats = res && res.stats ? res.stats : undefined
@@ -45,26 +45,5 @@ self.onmessage = async (ev: MessageEvent) => {
     }
   } catch (err: any) {
     postMessage({ id, type: 'error', error: String(err && err.message ? err.message : err) })
-  }
-}
-import { mctsCoreChooseMove } from './mcts.core'
-import { createSeededRng } from './rng'
-
-onmessage = async (ev: MessageEvent) => {
-  const { id, state, options, seed } = ev.data || {}
-  const controller = new AbortController()
-  try {
-    if (options && options.timeBudgetMs && options.timeBudgetMs > 0) {
-      setTimeout(() => controller.abort(), options.timeBudgetMs)
-    }
-    const rng = seed != null ? createSeededRng(seed) : Math.random
-    const res = await mctsCoreChooseMove(state, options, rng as any, controller.signal)
-    if (res && typeof res === 'object' && 'move' in res) {
-      postMessage({ id, move: res.move, stats: res.stats })
-    } else {
-      postMessage({ id, move: res as any })
-    }
-  } catch (err: any) {
-    postMessage({ id, error: err?.message ?? String(err) })
   }
 }

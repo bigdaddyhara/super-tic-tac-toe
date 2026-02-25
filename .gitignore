@@ -5,4 +5,8 @@ coverage/
 .DS_Store
 /.idea
 /.vscode
-/*.log
+*.log
+logs/
+
+# PBT failure artifacts (local debugging only)
+tests/pbt-failures/*.json

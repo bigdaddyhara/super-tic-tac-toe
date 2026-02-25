@@ -21,7 +21,7 @@ describe('AI difficulty & clamping', () => {
 
     // ensure chooseMove was called and options reflect clamping
     expect(chooseMock).toHaveBeenCalled()
-    const passedOpts = chooseMock.mock.calls[0][1]
+    const passedOpts = chooseMock.mock.calls[0][1]!
     expect(passedOpts.timeBudgetMs).toBeGreaterThanOrEqual(0)
     // effective should equal remaining (120) and difficulty should be downgraded to 'medium'
     expect(passedOpts.timeBudgetMs).toBe(120)

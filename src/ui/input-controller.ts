@@ -1,134 +1,76 @@
-import { logEvent } from './instrumentation'
-// Canvas-only input controller: tracks mouse movement over the game canvas and
-// exposes the hovered small/cell index. No click-to-move behavior here (Part C).
+import { BoardIndex, CellIndex } from '../types/game-types'
+import { pixelToBoardIndex } from './coord-utils'
 
-export type SelectIntent = {
-  boardIndex: number
-  cellIndex: number
-  bigRow: number
-  bigCol: number
-  smallRow: number
-  smallCol: number
-  canvasX: number
-  canvasY: number
+type InputMove = { board: BoardIndex; cell: CellIndex }
+
+interface PlayerMoveController {
+  applyPlayerMove(move: InputMove): void
+  setHoverMove(move: InputMove | null): void
 }
 
-type HoverCallback = (hover: { smallIndex: number; cellIndex: number } | null) => void
-type SelectCallback = (intent: SelectIntent) => void
-
 export class CanvasInputController {
-  private canvas: HTMLCanvasElement
-  public hover: { smallIndex: number; cellIndex: number } | null = null
+  private readonly canvas: HTMLCanvasElement
+  private readonly boardRect: { x: number; y: number; size: number }
+  private readonly controller: PlayerMoveController
   private attached = false
-  private onHoverCb: HoverCallback | null = null
-  private onSelectCb: SelectCallback | null = null
-  private hudHeight: number
-  private boardSize: number
 
-  constructor(canvas: HTMLCanvasElement, opts?: { hudHeight?: number; boardSize?: number }) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    boardRect: { x: number; y: number; size: number },
+    controller: PlayerMoveController,
+  ) {
     this.canvas = canvas
-    this.hudHeight = opts?.hudHeight ?? 80
-    this.boardSize = opts?.boardSize ?? 720
+    this.boardRect = boardRect
+    this.controller = controller
   }
 
-  onHover(cb: HoverCallback) {
-    this.onHoverCb = cb
-  }
-
-  onSelect(cb: SelectCallback) {
-    this.onSelectCb = cb
-  }
-
-  attach() {
+  init(): void {
     if (this.attached) return
     this.attached = true
-    this.canvas.addEventListener('mousemove', this.onMove)
-    this.canvas.addEventListener('mouseleave', this.onLeave)
-    this.canvas.addEventListener('click', this.onClick)
+    this.canvas.addEventListener('pointerdown', this.handlePointerDown)
+    this.canvas.addEventListener('pointermove', this.handlePointerMove)
+    this.canvas.addEventListener('pointerleave', this.handlePointerLeave)
   }
 
-  detach() {
+  destroy(): void {
     if (!this.attached) return
     this.attached = false
-    this.canvas.removeEventListener('mousemove', this.onMove)
-    this.canvas.removeEventListener('mouseleave', this.onLeave)
-    this.canvas.removeEventListener('click', this.onClick)
+    this.canvas.removeEventListener('pointerdown', this.handlePointerDown)
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove)
+    this.canvas.removeEventListener('pointerleave', this.handlePointerLeave)
   }
 
-  private onLeave = () => {
-    this.hover = null
-    if (this.onHoverCb) this.onHoverCb(null)
+  handlePointerDown = (e: PointerEvent): void => {
+    const mapped = this.mapPointerEvent(e)
+    if (!mapped) return
+
+    this.controller.applyPlayerMove({ board: mapped.boardIndex, cell: mapped.cellIndex })
   }
 
-  private toCanvasSpace(clientX: number, clientY: number) {
-    const rect = this.canvas.getBoundingClientRect()
-    const scaleX = this.canvas.width / rect.width
-    const scaleY = this.canvas.height / rect.height
-    const x = (clientX - rect.left) * scaleX
-    const y = (clientY - rect.top) * scaleY
-    return { x, y, rect }
-  }
-
-  private mapToGrid(x: number, y: number) {
-    const { hudHeight, boardSize } = this
-    const cellSize = boardSize / 9
-
-    if (x < 0 || x > boardSize || y < hudHeight || y > hudHeight + boardSize) {
-      return null
-    }
-
-    const relY = y - hudHeight
-    const globalCol = Math.floor(x / cellSize)
-    const globalRow = Math.floor(relY / cellSize)
-
-    const bigRow = Math.floor(globalRow / 3)
-    const bigCol = Math.floor(globalCol / 3)
-    const smallRow = globalRow % 3
-    const smallCol = globalCol % 3
-
-    const boardIndex = bigRow * 3 + bigCol
-    const cellIndex = smallRow * 3 + smallCol
-
-    return { boardIndex, cellIndex, bigRow, bigCol, smallRow, smallCol }
-  }
-
-  private onMove = (e: MouseEvent) => {
-    const { x, y } = this.toCanvasSpace(e.clientX, e.clientY)
-    const grid = this.mapToGrid(x, y)
-    if (!grid) {
-      this.hover = null
-      if (this.onHoverCb) this.onHoverCb(null)
+  handlePointerMove = (e: PointerEvent): void => {
+    const mapped = this.mapPointerEvent(e)
+    if (!mapped) {
+      this.controller.setHoverMove(null)
       return
     }
 
-      // debug log + instrumentation
-      try { logEvent('input.hover', grid) } catch {}
-    console.log('[input] hover', grid)
-
-    this.hover = { smallIndex: grid.boardIndex, cellIndex: grid.cellIndex }
-    if (this.onHoverCb) this.onHoverCb(this.hover)
+    this.controller.setHoverMove({ board: mapped.boardIndex, cell: mapped.cellIndex })
   }
 
-  private onClick = (e: MouseEvent) => {
-    const { x, y } = this.toCanvasSpace(e.clientX, e.clientY)
-    const grid = this.mapToGrid(x, y)
-    if (!grid) return
+  handlePointerLeave = (): void => {
+    this.controller.setHoverMove(null)
+  }
 
-      console.log('[input] click', grid)
-      try { logEvent('input.click', grid) } catch {}
+  private mapPointerEvent(e: PointerEvent): { boardIndex: BoardIndex; cellIndex: CellIndex } | null {
+    const rect = this.canvas.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
 
-    // Emit candidate select intent (no engine mutation here)
-    const intent: SelectIntent = {
-      boardIndex: grid.boardIndex,
-      cellIndex: grid.cellIndex,
-      bigRow: grid.bigRow,
-      bigCol: grid.bigCol,
-      smallRow: grid.smallRow,
-      smallCol: grid.smallCol,
-      canvasX: x,
-      canvasY: y,
-    }
+    const scaledX = (e.clientX - rect.left) * (this.canvas.width / rect.width)
+    const scaledY = (e.clientY - rect.top) * (this.canvas.height / rect.height)
 
-    if (this.onSelectCb) this.onSelectCb(intent)
+    const logicalX = scaledX / (this.canvas.width / rect.width)
+    const logicalY = scaledY / (this.canvas.height / rect.height)
+
+    return pixelToBoardIndex(logicalX, logicalY, this.boardRect)
   }
 }

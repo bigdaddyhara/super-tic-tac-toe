@@ -1,0 +1,2 @@
+# This directory contains replay tests for debugging PBT failures.
+# When a property test fails, create a replay test here to reproduce it deterministically.

@@ -22,6 +22,40 @@ export const colors = {
   draw: '#6b7280',
 };
 
+export const TOKENS = {
+  colors: {
+    background: '#0f172a',
+    bigGridLine: '#334155',
+    smallGridLine: '#1e293b',
+    markX: '#f87171',
+    markO: '#60a5fa',
+    lastMoveHighlight: 'rgba(250,204,21,0.55)',
+    illegalMoveFlash: 'rgba(239,68,68,0.65)',
+    forcedBoardBorder: '#facc15',
+    freeMoveAllBoardsBorder: '#a3e635',
+    legalCellOverlay: 'rgba(163,230,53,0.12)',
+    hoverCellOverlay: 'rgba(250,204,21,0.22)',
+    illegalClickFlash: 'rgba(239,68,68,0.30)',
+    closedBoardOverlayWon: 'rgba(255,255,255,0.07)',
+    closedBoardOverlayDraw: 'rgba(0,0,0,0.35)',
+    wonBoardSymbol: {
+      X: 'rgba(248,113,113,0.25)',
+      O: 'rgba(96,165,250,0.25)',
+    },
+  },
+  lineWidth: {
+    bigGrid: 3,
+    smallGrid: 1,
+    mark: 3,
+    forcedBoardBorder: 3,
+    freeMoveAllBoardsBorder: 2,
+  },
+  markPadding: 0.18,
+  fontSize: {
+    wonBoardSymbol: 0.7,
+  },
+} as const;
+
 export const typography = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   base: 14,

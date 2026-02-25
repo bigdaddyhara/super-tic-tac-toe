@@ -6,6 +6,7 @@
 import { chooseMove } from '../src/ai'
 import { applyMove } from '../src/game/engine'
 import { GameState, Move } from '../src/types/game-types'
+import { Difficulty } from '../src/ai/types'
 
 function emptyBigBoard(): GameState['bigBoard'] {
   return Array.from({ length: 9 }).map(() => Array.from({ length: 9 }).map(() => null))
@@ -29,7 +30,7 @@ async function runGame(p1: string, p2: string, opts: any = {}) {
     // wrap in try to ensure we always produce a move
     let mv: Move | null = null
     try {
-      mv = await chooseMove(state, { difficulty: playerPreset, timeBudgetMs: opts.timeBudgetMs, seed: opts.seed })
+      mv = await chooseMove(state, { difficulty: playerPreset as Difficulty, timeBudgetMs: opts.timeBudgetMs, seed: opts.seed })
     } catch (e) {
       // fallback to first legal move
       const legal = (require('../src/game/legal-moves') as any).getLegalMoves(state)

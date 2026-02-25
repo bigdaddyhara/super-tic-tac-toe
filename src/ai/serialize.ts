@@ -15,7 +15,7 @@ export function serializeState(s: GameState): SerializedState {
     bigBoard: s.bigBoard.map((b) => b.slice()),
     currentPlayer: s.currentPlayer,
     nextBoardIndex: s.nextBoardIndex,
-    winner: s.winner,
+    winner: s.winner ?? 'Ongoing',
     turnCount: (s as any).turnCount ?? undefined,
   };
 }
@@ -26,7 +26,7 @@ export function deserializeState(obj: any): GameState {
     bigBoard: (obj.bigBoard as any).map((b: any) => b.slice()),
     currentPlayer: obj.currentPlayer,
     nextBoardIndex: obj.nextBoardIndex,
-    winner: obj.winner,
+    winner: obj.winner === 'Ongoing' ? null : obj.winner,
     // preserve other fields if present
     bigWinner: (obj as any).bigWinner ?? undefined,
   } as unknown as GameState;

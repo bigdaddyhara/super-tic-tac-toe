@@ -293,7 +293,7 @@ export function drawGameSurface(
       const diag = (view as any).analysis.diagnostics as any
       const top = Array.isArray(diag.topMoves) ? diag.topMoves : []
       // draw heatmap: circles at cell centers with alpha proportional to visits (normalized)
-      const maxVisits = top.reduce((m, t) => Math.max(m, t.visits || 0), 0) || 1
+      const maxVisits = top.reduce((m: number, t: any) => Math.max(m, t.visits || 0), 0) || 1
       ctx.save()
       ctx.translate(shakeX, shakeY)
       for (const t of top) {

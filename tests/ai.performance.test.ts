@@ -18,7 +18,7 @@ describe('AI performance & cancellation', () => {
     const budget = 50
     const res = await mctsCoreChooseMove(state as any, { timeBudgetMs: budget }, rng, new AbortController().signal)
     // allow modest scheduling tolerance
-    expect(res.stats.elapsedMs).toBeLessThanOrEqual(budget + 200)
+    expect(res.stats!.elapsedMs).toBeLessThanOrEqual(budget + 200)
   })
 
   it('stops early when aborted via signal', async () => {
@@ -29,7 +29,7 @@ describe('AI performance & cancellation', () => {
     setTimeout(() => ctrl.abort(), 10)
     const res = await p
     // aborted run should complete quickly (we allow generous tolerance)
-    expect(res.stats.elapsedMs).toBeLessThanOrEqual(1000)
+    expect(res.stats!.elapsedMs).toBeLessThanOrEqual(1000)
   })
 
   it('ui cancel (undo) aborts thinking and clears thinking indicator', async () => {

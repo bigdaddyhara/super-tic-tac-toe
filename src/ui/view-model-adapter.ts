@@ -47,6 +47,8 @@ export interface RenderableState extends ReplayExtras {
   boardWinAnim?: { smallIndex: number; start: number; duration: number } | null
   // Analysis mode flag: when true the renderer may draw additional overlays
   analysisEnabled?: boolean
+  // AI enabled flag: when true AI is playing
+  aiEnabled?: boolean
   // Computed analysis data (cheap, cached per state change)
   analysis?: {
     forcedBoard: number | null

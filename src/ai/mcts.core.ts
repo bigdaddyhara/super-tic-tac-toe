@@ -56,7 +56,7 @@ export async function mctsCoreChooseMove(
 
   const legal = getLegalMoves(rootState as any);
   if (!legal || legal.length === 0) throw new Error("No legal moves available");
-  if (legal.length === 1) return legal[0];
+  if (legal.length === 1) return { move: legal[0] };
 
   // stable identifier for this root state so diagnostics can be associated with
   // history/replay snapshots.
@@ -144,14 +144,13 @@ export async function mctsCoreChooseMove(
     // heuristic-derived score if early-cutoff triggered
     let scoreFromHeuristic: number | null = null;
     function heuristicStateValue(s: GameState, rootPlayer: string, opts: ChooseOptions | undefined, rngFn: RNG): number {
-      if (s.winner && s.winner !== 'Ongoing') {
+      if (s.winner !== null) {
         if (s.winner === rootPlayer) return 1;
-        if (s.winner === 'Draw') return 0.5;
         return 0;
       }
-      if (!opts?.moveScoring) return 0.5;
       const ls = getLegalMoves(s as any) || [];
-      if (!ls || ls.length === 0) return 0.5;
+      if (!ls || ls.length === 0) return 0.5; // draw
+      if (!opts?.moveScoring) return 0.5;
       let bestCurr = -Infinity;
       for (const mv of ls) {
         const sc = opts.moveScoring!(cloneState(s), mv, rngFn);
@@ -179,7 +178,7 @@ export async function mctsCoreChooseMove(
         const mv = ls[Math.floor(rng() * ls.length)];
         simState = applyMove(simState, mv).nextState;
         rolloutSteps += 1;
-        if (simState.winner && simState.winner !== "Ongoing") break;
+        if (simState.winner) break;
         if (rolloutSteps >= cutoffDepth && options?.moveScoring) {
           const hv = heuristicStateValue(simState, rootState.currentPlayer, options, rng);
           if (hv >= cutoffConfidence || hv <= (1 - cutoffConfidence)) {
@@ -202,7 +201,7 @@ export async function mctsCoreChooseMove(
         let pick = null as Move | null;
         for (const candidate of ls) {
           const next = applyMove(cloneState(simState), candidate).nextState;
-          if (next.winner && next.winner !== "Ongoing") {
+          if (next.winner) {
             pick = candidate;
             break;
           }
@@ -214,7 +213,7 @@ export async function mctsCoreChooseMove(
             const oppMoves = getLegalMoves(next as any) || [];
             for (const om of oppMoves) {
               const oppNext = applyMove(cloneState(next), om).nextState;
-              if (oppNext.winner && oppNext.winner !== "Ongoing") return false; // candidate is bad
+              if (oppNext.winner) return false; // candidate is bad
             }
             return true;
           });
@@ -223,7 +222,7 @@ export async function mctsCoreChooseMove(
         if (!pick) pick = ls[Math.floor(rng() * ls.length)];
         simState = applyMove(simState, pick).nextState;
         rolloutSteps += 1;
-        if (simState.winner && simState.winner !== "Ongoing") break;
+        if (simState.winner) break;
         if (rolloutSteps >= cutoffDepth && options?.moveScoring) {
           const hv = heuristicStateValue(simState, rootState.currentPlayer, options, rng);
           if (hv >= cutoffConfidence || hv <= (1 - cutoffConfidence)) {
@@ -255,13 +254,13 @@ export async function mctsCoreChooseMove(
         score = e.value
       } else {
         if (simState.winner === rootState.currentPlayer) score = 1;
-        else if (simState.winner === "Draw") score = 0.5;
+        else if (simState.winner === null) score = 0.5; // draw or rollout cutoff
         else score = 0;
         tt.set(simState, { value: score, visits: 1 })
       }
     } else {
       if (simState.winner === rootState.currentPlayer) score = 1;
-      else if (simState.winner === "Draw") score = 0.5;
+      else if (simState.winner === null) score = 0.5; // draw or rollout cutoff
       else score = 0;
     }
 

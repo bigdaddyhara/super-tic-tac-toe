@@ -1,98 +1,151 @@
 import { GameState } from '../types/game-types'
 
-export type TimerSnapshot = { remainingMs: number | null; running: boolean; timeoutMs?: number }
-export type HistorySnapshot = {
+export interface GameSnapshot {
+  version: 1
+  timestamp: number
   state: GameState
-  move?: { board: number; cell: number }
-  ts: number
-  timer?: TimerSnapshot
-  stateId?: string
+}
+
+export interface HistoryState {
+  past: GameSnapshot[]
+  present: GameSnapshot
+  future: GameSnapshot[]
 }
 
 export class HistoryManager {
-  private past: HistorySnapshot[] = []
-  private future: HistorySnapshot[] = []
-  private capacity = 200
-  // current snapshot is not stored here; caller holds current `gameState`
+  static STORAGE_KEY = 'uttt-history'
 
-  // Utility: deep-clone a snapshot to avoid later mutation corrupting history
-  private cloneSnapshot(s: HistorySnapshot) {
-    // Prefer structuredClone when available for correctness and preserving types
-    // Fallback to JSON deep clone which is acceptable for the simple snapshot shape
-    // (no functions or circular refs expected)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    try {
-      // @ts-ignore - structuredClone may be available at runtime
-      return structuredClone(s) as HistorySnapshot
-    } catch (e) {
-      return JSON.parse(JSON.stringify(s)) as HistorySnapshot
+  private history: HistoryState
+
+  constructor(initialState: GameState) {
+    this.history = {
+      past: [],
+      present: this.createSnapshot(initialState),
+      future: [],
     }
   }
 
-  push(prev: HistorySnapshot, after: HistorySnapshot) {
-    // When a new move is made, push a cloned prev onto past and clear future
-    this.past.push(this.cloneSnapshot(prev))
-    this.future = []
-    // enforce capacity
-    this.trimOld(this.capacity)
-    // Note: caller will set current state to after.state
+  push(newState: GameState): void {
+    this.history.past.push(this.history.present)
+    this.history.present = this.createSnapshot(newState)
+    this.history.future = []
+    this.trimPastToMax()
+    this.persist()
   }
 
-  canUndo() {
-    return this.past.length > 0
+  canUndo(): boolean {
+    return this.history.past.length > 0
   }
 
-  canRedo() {
-    return this.future.length > 0
+  canRedo(): boolean {
+    return this.history.future.length > 0
   }
 
-  undo(current: HistorySnapshot): HistorySnapshot | null {
+  undo(): GameState | null {
     if (!this.canUndo()) return null
-    const prev = this.past.pop()!
-    // move a clone of current into future to avoid mutation
-    this.future.push(this.cloneSnapshot(current))
-    return this.cloneSnapshot(prev)
+
+    this.history.future.unshift(this.history.present)
+    this.history.present = this.history.past.pop()!
+    this.persist()
+    return this.history.present.state
   }
 
-  redo(current: HistorySnapshot): HistorySnapshot | null {
+  redo(): GameState | null {
     if (!this.canRedo()) return null
-    const next = this.future.pop()!
-    // push a clone of current onto past
-    this.past.push(this.cloneSnapshot(current))
-    return this.cloneSnapshot(next)
+
+    this.history.past.push(this.history.present)
+    this.history.present = this.history.future.shift()!
+    this.trimPastToMax()
+    this.persist()
+    return this.history.present.state
   }
 
-  clear() {
-    this.past = []
-    this.future = []
+  getPresent(): GameState {
+    return this.history.present.state
   }
 
-  // optional cap support
-  trimOld(maxEntries: number) {
-    if (this.past.length <= maxEntries) return
-    const excess = this.past.length - maxEntries
-    this.past.splice(0, excess)
+  getAll(): GameSnapshot[] {
+    return [...this.history.past, this.history.present, ...this.history.future]
   }
 
-  // Introspection helpers
-  hasPast() {
-    return this.canUndo()
+  reset(initialState: GameState): void {
+    this.history = {
+      past: [],
+      present: this.createSnapshot(initialState),
+      future: [],
+    }
+    this.persist()
   }
 
-  hasFuture() {
-    return this.canRedo()
+  getState(): HistoryState {
+    return this.history
   }
 
-  pastLength() {
-    return this.past.length
+  private createSnapshot(state: GameState): GameSnapshot {
+    return {
+      version: 1,
+      timestamp: Date.now(),
+      state,
+    }
   }
 
-  futureLength() {
-    return this.future.length
+  private trimPastToMax(): void {
+    if (this.history.past.length > 200) {
+      this.history.past.splice(0, this.history.past.length - 200)
+    }
   }
 
-  setCapacity(n: number) {
-    this.capacity = Math.max(0, Math.floor(n))
-    this.trimOld(this.capacity)
+  private persist(): void {
+    try {
+      if (typeof localStorage === 'undefined') return
+      localStorage.setItem(HistoryManager.STORAGE_KEY, JSON.stringify(this.history))
+    } catch {
+      // ignore persistence errors
+    }
+  }
+
+  static load(): HistoryManager | null {
+    try {
+      if (typeof localStorage === 'undefined') return null
+
+      const raw = localStorage.getItem(HistoryManager.STORAGE_KEY)
+      if (!raw) return null
+
+      const parsed = JSON.parse(raw) as unknown
+      if (!HistoryManager.isValidHistoryState(parsed)) {
+        localStorage.removeItem(HistoryManager.STORAGE_KEY)
+        return null
+      }
+
+      const manager = new HistoryManager(parsed.present.state)
+      manager.history = parsed
+      return manager
+    } catch {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(HistoryManager.STORAGE_KEY)
+        }
+      } catch {
+        // ignore cleanup errors
+      }
+      return null
+    }
+  }
+
+  private static isValidHistoryState(value: unknown): value is HistoryState {
+    if (!value || typeof value !== 'object') return false
+    const candidate = value as Partial<HistoryState>
+    if (!Array.isArray(candidate.past) || !Array.isArray(candidate.future)) return false
+    if (!HistoryManager.isValidSnapshot(candidate.present)) return false
+    return candidate.past.every(HistoryManager.isValidSnapshot) && candidate.future.every(HistoryManager.isValidSnapshot)
+  }
+
+  private static isValidSnapshot(value: unknown): value is GameSnapshot {
+    if (!value || typeof value !== 'object') return false
+    const snapshot = value as Partial<GameSnapshot>
+    if (snapshot.version !== 1) return false
+    if (typeof snapshot.timestamp !== 'number' || !Number.isFinite(snapshot.timestamp)) return false
+    if (!snapshot.state || typeof snapshot.state !== 'object') return false
+    return true
   }
 }

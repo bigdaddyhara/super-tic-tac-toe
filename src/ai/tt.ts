@@ -60,7 +60,7 @@ export class TranspositionTable {
     // simple LRU eviction by insertion order
     if (this.map.size > this.maxEntries) {
       const firstKey = this.map.keys().next().value
-      this.map.delete(firstKey)
+      if (firstKey !== undefined) this.map.delete(firstKey)
     }
   }
 
