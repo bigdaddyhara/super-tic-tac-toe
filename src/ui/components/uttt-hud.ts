@@ -4,41 +4,140 @@ import { getActiveForcedBoard, isDraw, isFreeMove, isGameOver } from '../game-ad
 const hudStyles = `
   :host {
     display: block;
-    color: var(--color-text, #e2e8f0);
+    color: var(--color-text, #e8f0fe);
     font-family: var(--font-family-base, Inter, sans-serif);
   }
 
   .hud {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .hud__title {
-    margin: 0;
-    font-size: var(--font-size-lg, 1.125rem);
-    font-weight: 600;
-  }
-
-  .hud__chips {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
   }
 
-  .chip {
-    border: 1px solid var(--color-border, #32415f);
-    border-radius: var(--radius-1, 0.5rem);
-    background: var(--color-surface-muted, #17233b);
-    padding: 0.375rem 0.625rem;
-    font-size: var(--font-size-sm, 0.8125rem);
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: all 180ms ease;
+    opacity: 0.45;
   }
 
-  .chip--x {
-    color: var(--color-danger, #f87171);
+  .player-card--active {
+    opacity: 1;
   }
 
-  .chip--o {
-    color: var(--color-accent, #60a5fa);
+  .player-card--x.player-card--active {
+    background: var(--color-x-bg, rgba(255,71,87,0.1));
+    border-color: var(--color-x, #ff6b6b);
+    box-shadow: 0 0 16px var(--color-x-glow, rgba(255,107,107,0.3));
+  }
+
+  .player-card--o.player-card--active {
+    background: var(--color-o-bg, rgba(79,195,247,0.1));
+    border-color: var(--color-o, #4fc3f7);
+    box-shadow: 0 0 16px var(--color-o-glow, rgba(79,195,247,0.3));
+  }
+
+  .player-mark {
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+  }
+
+  .player-card--x .player-mark {
+    color: var(--color-x, #ff6b6b);
+    background: rgba(255, 107, 107, 0.12);
+  }
+
+  .player-card--o .player-mark {
+    color: var(--color-o, #4fc3f7);
+    background: rgba(79, 195, 247, 0.12);
+  }
+
+  .player-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .player-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+
+  .player-card--x .player-name { color: var(--color-x, #ff6b6b); }
+  .player-card--o .player-name { color: var(--color-o, #4fc3f7); }
+
+  .player-status {
+    font-size: 0.6875rem;
+    color: var(--color-text-muted, #8ba4c4);
+    font-weight: 400;
+  }
+
+  .vs-divider {
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--color-text-dim, #4a6280);
+    padding: 0 0.125rem;
+    flex-shrink: 0;
+  }
+
+  .constraint-badge {
+    margin-left: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border, #1e3154);
+    background: var(--color-surface-muted, #111f35);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-text-muted, #8ba4c4);
+    white-space: nowrap;
+  }
+
+  .constraint-badge--forced {
+    border-color: rgba(250, 204, 21, 0.5);
+    color: #facc15;
+    background: rgba(250, 204, 21, 0.08);
+  }
+
+  .game-over-badge {
+    padding: 0.375rem 0.875rem;
+    border-radius: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .game-over-badge--win-x {
+    color: var(--color-x, #ff6b6b);
+    background: var(--color-x-bg, rgba(255,71,87,0.1));
+    border: 1px solid var(--color-x, #ff6b6b);
+    box-shadow: 0 0 12px var(--color-x-glow, rgba(255,107,107,0.3));
+  }
+
+  .game-over-badge--win-o {
+    color: var(--color-o, #4fc3f7);
+    background: var(--color-o-bg, rgba(79,195,247,0.1));
+    border: 1px solid var(--color-o, #4fc3f7);
+    box-shadow: 0 0 12px var(--color-o-glow, rgba(79,195,247,0.3));
+  }
+
+  .game-over-badge--draw {
+    color: var(--color-text-muted, #8ba4c4);
+    background: rgba(139, 164, 196, 0.08);
+    border: 1px solid var(--color-border, #1e3154);
   }
 `
 
@@ -69,45 +168,57 @@ export class UTTTHudElement extends HTMLElement {
     if (!this.shadowRoot) return
 
     const state = this.state
+    const currentPlayer = state?.currentPlayer ?? 'X'
+    const gameOver = state ? isGameOver(state) : false
+    const draw = state ? isDraw(state) : false
 
-    let gameStatus = 'Ongoing'
-    let turnLabel = 'Current player: X'
-    let constraintLabel = 'Free move'
+    let constraintHTML = ''
+    let gameOverBadge = ''
 
-    if (state) {
-      if (isGameOver(state)) {
-        gameStatus = `Winner: ${state.winner}`
-      } else if (isDraw(state)) {
-        gameStatus = 'Draw'
+    if (gameOver && state) {
+      const winnerClass = state.winner === 'X' ? 'game-over-badge--win-x' : 'game-over-badge--win-o'
+      gameOverBadge = `<span class="game-over-badge ${winnerClass}" aria-live="polite">${state.winner} Wins!</span>`
+    } else if (draw) {
+      gameOverBadge = `<span class="game-over-badge game-over-badge--draw" aria-live="polite">Draw</span>`
+    } else if (state && !isFreeMove(state)) {
+      const forced = getActiveForcedBoard(state)
+      if (forced !== null) {
+        const { row, col } = boardIndexToRowCol(forced)
+        constraintHTML = `<span class="constraint-badge constraint-badge--forced" aria-live="polite" aria-label="Forced board">Board (${row},${col})</span>`
       }
-
-      turnLabel = `Current player: ${state.currentPlayer}`
-
-      if (isFreeMove(state)) {
-        constraintLabel = 'Free move'
-      } else {
-        const forced = getActiveForcedBoard(state)
-        if (forced !== null) {
-          const { row, col } = boardIndexToRowCol(forced)
-          constraintLabel = `Forced board: (${row},${col}) / ${forced}`
-        } else {
-          constraintLabel = 'Free move'
-        }
-      }
+    } else if (state) {
+      constraintHTML = `<span class="constraint-badge" aria-live="polite" aria-label="Free move">Free move</span>`
     }
 
-    const playerChipClass = state?.currentPlayer === 'O' ? 'chip chip--o' : 'chip chip--x'
+    const xActive = !gameOver && !draw && currentPlayer === 'X'
+    const oActive = !gameOver && !draw && currentPlayer === 'O'
+
+    const xStatus = gameOver && state?.winner === 'X' ? 'Winner!' : xActive ? 'Your turn' : ''
+    const oStatus = gameOver && state?.winner === 'O' ? 'Winner!' : oActive ? 'Your turn' : ''
 
     this.shadowRoot.innerHTML = `
       <style>${hudStyles}</style>
-      <section class="hud" aria-label="Game HUD">
-        <h2 class="hud__title">Game HUD</h2>
-        <div class="hud__chips">
-          <div class="chip" aria-live="polite" aria-label="Game status">${gameStatus}</div>
-          <div class="${playerChipClass}" aria-live="polite" aria-label="Current player">${turnLabel}</div>
-          <div class="chip" aria-live="polite" aria-label="Constraint indicator">${constraintLabel}</div>
+      <div class="hud" aria-label="Game HUD">
+        <div class="player-card player-card--x ${xActive ? 'player-card--active' : ''}" aria-label="Player X${xActive ? ' (current)' : ''}">
+          <div class="player-mark">✕</div>
+          <div class="player-label">
+            <span class="player-name">Player X</span>
+            ${xStatus ? `<span class="player-status">${xStatus}</span>` : ''}
+          </div>
         </div>
-      </section>
+
+        <span class="vs-divider">VS</span>
+
+        <div class="player-card player-card--o ${oActive ? 'player-card--active' : ''}" aria-label="Player O${oActive ? ' (current)' : ''}">
+          <div class="player-mark">○</div>
+          <div class="player-label">
+            <span class="player-name">Player O</span>
+            ${oStatus ? `<span class="player-status">${oStatus}</span>` : ''}
+          </div>
+        </div>
+
+        ${gameOverBadge || constraintHTML}
+      </div>
     `
   }
 }

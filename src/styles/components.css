@@ -1,10 +1,11 @@
 @import './tokens.css';
 
+/* ── Panel ─────────────────────────────────────────────── */
 .panel {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-3);
   background: var(--color-surface);
-  padding: var(--space-4);
+  padding: var(--space-5);
 
   & h1,
   & h2,
@@ -13,39 +14,123 @@
   }
 }
 
+/* ── App header ────────────────────────────────────────── */
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.app-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .app-title {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: var(--gradient-title);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.app-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .status-row {
-  margin-top: var(--space-3);
-  display: block;
+  flex: 1;
+  min-width: 0;
 }
 
-.hud-chip {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  background: var(--color-surface-muted);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-sm);
-}
-
-#player-indicator.player-x,
-#endgame-message.winner-x {
-  color: var(--color-danger);
-}
-
-#player-indicator.player-o,
-#endgame-message.winner-o {
-  color: var(--color-accent);
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
+/* ── Button ────────────────────────────────────────────── */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: 0.5rem 1rem;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+
+  &:hover {
+    background: var(--color-accent-strong);
+    border-color: var(--color-accent-strong);
+    box-shadow: 0 0 12px var(--color-accent-glow);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
 }
 
+.button--primary {
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+  color: #fff;
+
+  &:hover {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+}
+
+.button--ghost {
+  background: transparent;
+  border-color: var(--color-border);
+
+  &:hover {
+    background: var(--color-surface-muted);
+    border-color: var(--color-accent);
+  }
+}
+
+.button--wide {
+  width: 100%;
+}
+
+/* ── Canvas host ───────────────────────────────────────── */
+.canvas-host {
+  position: relative;
+  width: min(840px, 100%);
+}
+
+.canvas {
+  width: min(840px, 96vw);
+  height: min(840px, 96vw);
+  display: block;
+  border-radius: var(--radius-3);
+  border: 1px solid var(--color-border);
+  background: #050c18;
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(59, 130, 246, 0.06);
+}
+
+/* ── Controls host ─────────────────────────────────────── */
 uttt-hud,
 uttt-controls,
 uttt-help,
@@ -59,60 +144,24 @@ uttt-toast {
   gap: var(--space-3);
 }
 
-#settings-host > h2 {
-  margin-bottom: var(--space-2);
+/* ── Settings host ─────────────────────────────────────── */
+.settings-action-row {
+  display: grid;
+  gap: var(--space-2);
 }
 
-#open-settings-btn {
-  width: 100%;
-}
-
-#open-help-btn {
-  width: 100%;
-}
-
-.button {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-2) var(--space-3);
+/* ── AI Indicator ──────────────────────────────────────── */
+.ai-indicator {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
   background: var(--color-surface-muted);
-  color: var(--color-text);
-  cursor: pointer;
-
-  &:hover {
-    background: var(--color-accent-strong);
-  }
-
-  &:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    filter: grayscale(0.12);
-  }
-
-  &:disabled:hover {
-    background: var(--color-surface-muted);
-  }
-}
-
-.canvas-host {
-  position: relative;
-  width: min(900px, 100%);
-}
-
-.canvas {
-  width: min(860px, 96vw);
-  height: min(860px, 96vw);
-  display: block;
-  border-radius: var(--radius-3);
-  border: 1px solid var(--color-border);
-  background: #020617;
-}
-
-.footer-help {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  padding: var(--space-2) var(--space-3);
+  letter-spacing: 0.02em;
 }
 
+/* ── Endgame overlay ───────────────────────────────────── */
 #endgame-overlay {
   position: absolute;
   inset: 0;
@@ -120,12 +169,14 @@ uttt-toast {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
-  background: color-mix(in srgb, var(--color-bg) 82%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  gap: var(--space-5);
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 10;
   pointer-events: all;
+  border-radius: var(--radius-3);
+  animation: fade-in 240ms ease-out;
 }
 
 #endgame-overlay[hidden] {
@@ -133,60 +184,62 @@ uttt-toast {
 }
 
 #endgame-message {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 800;
   text-align: center;
   margin: 0;
+  letter-spacing: -0.03em;
+  background: var(--gradient-title);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 #play-again-btn {
   font-size: var(--font-size-md);
-  padding: var(--space-3) var(--space-5);
+  font-weight: 600;
+  padding: var(--space-3) var(--space-8);
   min-width: 10rem;
-}
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+  color: #fff;
+  border-radius: var(--radius-2);
+  box-shadow: 0 0 24px var(--color-accent-glow);
 
-#settings-panel {
-  margin-top: var(--space-4);
-  display: grid;
-  gap: var(--space-3);
-
-  & label {
-    display: grid;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
+  &:hover {
+    background: var(--color-accent);
+    box-shadow: 0 0 36px var(--color-accent-glow);
   }
 }
 
-uttt-settings {
-  display: contents;
+/* ── Footer ────────────────────────────────────────────── */
+.footer-help {
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
-.ai-indicator {
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-1);
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  padding: var(--space-2) var(--space-3);
-}
-
+/* ── Settings dialog ───────────────────────────────────── */
 .settings-dialog {
   width: min(var(--dialog-width), calc(100vw - 2rem));
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-3);
   background: var(--color-surface);
   color: var(--color-text);
   padding: 0;
+  box-shadow: var(--shadow-lg);
 
   &::backdrop {
     background: var(--color-overlay);
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
 }
 
 .settings-form {
-  padding: var(--space-4);
+  padding: var(--space-5);
   display: grid;
   gap: var(--space-4);
 
@@ -196,6 +249,12 @@ uttt-settings {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+  }
+
+  & .settings-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
   }
 
   & .field {
@@ -212,68 +271,62 @@ uttt-settings {
       background: var(--color-input-bg);
       color: var(--color-text);
       padding: 0 var(--space-3);
+      transition: border-color var(--transition-fast);
+
+      &:focus {
+        border-color: var(--color-accent);
+        outline: none;
+      }
+    }
+
+    & span {
+      font-weight: 500;
+      color: var(--color-text-muted);
     }
 
     & small {
-      color: var(--color-text-muted);
+      color: var(--color-text-dim);
     }
   }
 
   & .field--checkbox {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    cursor: pointer;
+
+    & input[type='checkbox'] {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--color-accent);
+    }
   }
 }
 
-.toast-stack {
-  position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  z-index: 30;
-  display: grid;
-  gap: var(--space-2);
-  width: min(24rem, calc(100vw - 2rem));
+uttt-settings {
+  display: contents;
 }
 
-.toast {
-  border: 1px solid var(--color-border);
-  border-left-width: 4px;
-  border-radius: var(--radius-1);
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-bg) 62%, transparent);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-sm);
-  animation: toast-in 160ms ease-out;
-
-  &.toast--success {
-    border-left-color: var(--color-accent);
-  }
-
-  &.toast--warning,
-  &.toast--error {
-    border-left-color: var(--color-danger);
-  }
-}
-
+/* ── Help dialog ───────────────────────────────────────── */
 .help-dialog {
   width: min(var(--dialog-width), calc(100vw - 2rem));
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-3);
   background: var(--color-surface);
   color: var(--color-text);
   padding: 0;
+  box-shadow: var(--shadow-lg);
 
   &::backdrop {
     background: var(--color-overlay);
+    backdrop-filter: blur(4px);
   }
 }
 
 .help-content {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-5);
+  padding: var(--space-5);
 }
 
 .help-header {
@@ -284,40 +337,113 @@ uttt-settings {
 
   & h3 {
     margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
   }
 }
 
 .help-section {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
 
   & h4 {
     margin: 0;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
   }
 
   & ul {
     margin: 0;
     padding-left: 1.25rem;
     display: grid;
-    gap: var(--space-1);
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+
+    & li strong {
+      color: var(--color-text);
+    }
   }
 }
 
+/* ── Toast stack ───────────────────────────────────────── */
+.toast-stack {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 30;
+  display: grid;
+  gap: var(--space-2);
+  width: min(22rem, calc(100vw - 2rem));
+}
+
+.toast {
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-2);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  animation: toast-in 180ms ease-out;
+
+  &.toast--success {
+    border-left-color: var(--color-o);
+  }
+
+  &.toast--warning {
+    border-left-color: #facc15;
+  }
+
+  &.toast--error {
+    border-left-color: var(--color-x);
+  }
+
+  &.toast--info {
+    border-left-color: var(--color-accent);
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────── */
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateX(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast {
+  .toast,
+  #endgame-overlay {
     animation: none;
   }
 }
