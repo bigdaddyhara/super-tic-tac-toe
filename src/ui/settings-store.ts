@@ -25,6 +25,8 @@ function sanitize(raw: Partial<UTTTSettings>): UTTTSettings {
         ? Math.round(clampNumber(raw.secondsPerTurn, 5, 300))
         : UTTT_SETTINGS_DEFAULTS.secondsPerTurn,
     aiDifficulty: isAIDifficulty(raw.aiDifficulty) ? raw.aiDifficulty : UTTT_SETTINGS_DEFAULTS.aiDifficulty,
+    aiEnabled: typeof raw.aiEnabled === 'boolean' ? raw.aiEnabled : UTTT_SETTINGS_DEFAULTS.aiEnabled,
+    aiPlayer: raw.aiPlayer === 'X' || raw.aiPlayer === 'O' ? raw.aiPlayer : UTTT_SETTINGS_DEFAULTS.aiPlayer,
     showLastMove: typeof raw.showLastMove === 'boolean' ? raw.showLastMove : UTTT_SETTINGS_DEFAULTS.showLastMove,
     highlightIntensity:
       typeof raw.highlightIntensity === 'number'

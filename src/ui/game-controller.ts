@@ -15,6 +15,9 @@ import { updateButtonStates } from './replay-controls'
 import type { HUD } from './hud'
 import type { EndgameOverlay } from './endgame-overlay'
 import type { AIDifficulty } from './settings-types'
+import { startAIMove, cancelAIMove } from './ai-manager'
+import { TurnTimer } from './turn-timer'
+import { getPreset } from '../ai/policy'
 
 interface TimerConfig {
   enabled: boolean
@@ -46,6 +49,11 @@ export class GameController {
   private timerConfig: TimerConfig = { enabled: false, secondsPerTurn: 15 }
   private aiDifficulty: AIDifficulty = 'medium'
   private visualOptions: VisualOptions = { showLastMoveHighlight: true, forcedBoardIntensity: 0.6 }
+  private aiEnabled = false
+  private aiPlayer: 'X' | 'O' = 'O'
+  private aiThinking = false
+  private turnTimer: TurnTimer = new TurnTimer(15000)
+  private onAIThinkingCallback: ((thinking: boolean) => void) | null = null
 
   constructor(canvas: HTMLCanvasElement | null) {
     if (!canvas) {
@@ -179,6 +187,55 @@ export class GameController {
     this.aiDifficulty = difficulty
   }
 
+  setAIEnabled(enabled: boolean, player: 'X' | 'O' = 'O'): void {
+    this.aiEnabled = enabled
+    this.aiPlayer = player
+    if (!enabled) {
+      cancelAIMove()
+      this.aiThinking = false
+      this.onAIThinkingCallback?.(false)
+    } else {
+      this.maybeScheduleAIMove()
+    }
+  }
+
+  setOnAIThinking(callback: (thinking: boolean) => void): void {
+    this.onAIThinkingCallback = callback
+  }
+
+  private maybeScheduleAIMove(): void {
+    if (!this.aiEnabled) return
+    if (isGameOver(this.state) || isDraw(this.state)) return
+    if (this.state.currentPlayer !== this.aiPlayer) return
+    if (this.aiThinking) return
+
+    const stateForAI = this.state
+    const preset = getPreset(this.aiDifficulty)
+    const budgetMs = preset?.timeBudgetMs ?? 1500
+    this.turnTimer.setTimeoutMs(budgetMs + 1000)
+
+    startAIMove(
+      stateForAI,
+      this.aiPlayer,
+      this.turnTimer,
+      { difficulty: this.aiDifficulty },
+      (thinking) => {
+        this.aiThinking = thinking
+        this.onAIThinkingCallback?.(thinking)
+      },
+    )
+      .then((move) => {
+        if (!this.aiEnabled) return
+        if (this.state !== stateForAI) return
+        if (isGameOver(this.state) || isDraw(this.state)) return
+        this.applyPlayerMove(move)
+      })
+      .catch(() => {
+        this.aiThinking = false
+        this.onAIThinkingCallback?.(false)
+      })
+  }
+
   setVisualOptions(options: VisualOptions): void {
     this.visualOptions = {
       showLastMoveHighlight: options.showLastMoveHighlight,
@@ -233,6 +290,7 @@ export class GameController {
           this.emitUIEvent('uttt:game-over', { result: 'draw', winner: null })
         },
       })
+      this.maybeScheduleAIMove()
     } catch {
       this.onIllegalMove(move)
     }
@@ -242,6 +300,9 @@ export class GameController {
     const prev = this.historyManager.undo()
     if (!prev) return
 
+    cancelAIMove()
+    this.aiThinking = false
+    this.onAIThinkingCallback?.(false)
     this.setState(prev)
     this.lastMove = null
     this.lastMoveSetAtMs = null
@@ -253,14 +314,21 @@ export class GameController {
     const next = this.historyManager.redo()
     if (!next) return
 
+    cancelAIMove()
+    this.aiThinking = false
+    this.onAIThinkingCallback?.(false)
     this.setState(next)
     this.lastMove = null
     this.lastMoveSetAtMs = null
     this.hoverMove = null
     this.emitHistoryChanged()
+    this.maybeScheduleAIMove()
   }
 
   resetGame(): void {
+    cancelAIMove()
+    this.aiThinking = false
+    this.onAIThinkingCallback?.(false)
     const fresh = createNewGame()
     this.historyManager.reset(fresh)
     this.setState(fresh)
@@ -269,6 +337,7 @@ export class GameController {
     this.hoverMove = null
     this.endgameOverlay?.hide()
     this.emitHistoryChanged()
+    this.maybeScheduleAIMove()
   }
 
   getHistoryManager(): HistoryManager {

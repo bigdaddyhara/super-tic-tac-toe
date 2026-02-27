@@ -217,6 +217,12 @@ export class UTTTAppElement extends HTMLElement {
     window.addEventListener('uttt:move-rejected', this.boundMoveRejected as EventListener)
     window.addEventListener('uttt:game-over', this.boundGameOver as EventListener)
 
+    controller.setOnAIThinking?.((thinking) => {
+      const indicator = this.getMountPoints().aiIndicator
+      if (!indicator) return
+      indicator.textContent = thinking ? '🤖 AI is thinking…' : 'AI: idle'
+    })
+
     this.applySettings(this.settings)
     this.updateLiveStatus()
   }
@@ -278,6 +284,12 @@ export class UTTTAppElement extends HTMLElement {
       })
     } catch {
       this.notify('Visual options are unavailable in this build.', 'info')
+    }
+
+    try {
+      this.controller.setAIEnabled?.(this.settings.aiEnabled, this.settings.aiPlayer)
+    } catch {
+      this.notify('AI mode is unavailable in this build.', 'info')
     }
   }
 

@@ -100,6 +100,17 @@ export class UTTTSettingsElement extends HTMLElement {
         }
       }
 
+      if (name === 'aiEnabled' && target instanceof HTMLInputElement) {
+        this.settings.aiEnabled = target.checked
+      }
+
+      if (name === 'aiPlayer' && target instanceof HTMLSelectElement) {
+        const value = target.value
+        if (value === 'X' || value === 'O') {
+          this.settings.aiPlayer = value
+        }
+      }
+
       if (name === 'showLastMove' && target instanceof HTMLInputElement) {
         this.settings.showLastMove = target.checked
       }
@@ -181,6 +192,19 @@ export class UTTTSettingsElement extends HTMLElement {
               <option value="insane" ${this.settings.aiDifficulty === 'insane' ? 'selected' : ''}>Insane</option>
             </select>
             ${this.aiAvailable ? '' : '<small>AI difficulty coming soon</small>'}
+          </label>
+
+          <label class="field field--checkbox">
+            <input name="aiEnabled" type="checkbox" ${this.settings.aiEnabled ? 'checked' : ''} ${this.aiAvailable ? '' : 'disabled'} />
+            Enable AI opponent
+          </label>
+
+          <label class="field">
+            <span>AI plays as</span>
+            <select name="aiPlayer" ${this.settings.aiEnabled && this.aiAvailable ? '' : 'disabled'}>
+              <option value="O" ${this.settings.aiPlayer === 'O' ? 'selected' : ''}>O (second player)</option>
+              <option value="X" ${this.settings.aiPlayer === 'X' ? 'selected' : ''}>X (first player)</option>
+            </select>
           </label>
 
           <label class="field field--checkbox">
