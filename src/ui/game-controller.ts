@@ -228,7 +228,7 @@ export class GameController {
         if (!this.aiEnabled) return
         if (this.state !== stateForAI) return
         if (isGameOver(this.state) || isDraw(this.state)) return
-        this.applyPlayerMove(move)
+        this.applyPlayerMove(move, true)
       })
       .catch(() => {
         this.aiThinking = false
@@ -248,7 +248,12 @@ export class GameController {
     })
   }
 
-  applyPlayerMove(move: { board: BoardIndex; cell: CellIndex }): void {
+  applyPlayerMove(move: { board: BoardIndex; cell: CellIndex }, fromAI = false): void {
+    // Silently ignore human clicks when it is the AI's turn
+    if (!fromAI && this.aiEnabled && this.state.currentPlayer === this.aiPlayer) {
+      return
+    }
+
     if (isGameOver(this.state) || getLegalMoves(this.state).length === 0) {
       this.emitUIEvent('uttt:move-rejected', { reason: 'terminal' })
       return

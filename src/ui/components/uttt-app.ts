@@ -63,6 +63,13 @@ export class UTTTAppElement extends HTMLElement {
     const message = result === 'draw' ? 'Game over: Draw.' : `Game over: ${winner ?? 'Unknown'} wins.`
     this.notify(message, 'success', 4200)
     this.updateLiveStatus(message)
+
+    // Push updated score into HUD
+    const score = this.controller?.getPlayerWins()
+    if (score) {
+      const hudEl = this.getMountPoints().hud as UTTTHudElement | null
+      hudEl?.setScore?.(score)
+    }
   }
 
   connectedCallback(): void {
@@ -220,7 +227,15 @@ export class UTTTAppElement extends HTMLElement {
     controller.setOnAIThinking?.((thinking) => {
       const indicator = this.getMountPoints().aiIndicator
       if (!indicator) return
-      indicator.textContent = thinking ? '🤖 AI is thinking…' : 'AI: idle'
+      if (thinking) {
+        indicator.textContent = `🤖 AI thinking… (${this.settings.aiDifficulty})`
+        indicator.setAttribute('data-active', 'true')
+      } else {
+        indicator.textContent = this.settings.aiEnabled
+          ? `AI active · ${this.settings.aiPlayer} · ${this.settings.aiDifficulty}`
+          : 'AI: off'
+        indicator.removeAttribute('data-active')
+      }
     })
 
     this.applySettings(this.settings)
@@ -290,6 +305,17 @@ export class UTTTAppElement extends HTMLElement {
       this.controller.setAIEnabled?.(this.settings.aiEnabled, this.settings.aiPlayer)
     } catch {
       this.notify('AI mode is unavailable in this build.', 'info')
+    }
+
+    // Sync AI mode label into HUD and indicator
+    const hudEl = this.getMountPoints().hud as UTTTHudElement | null
+    hudEl?.setAIMode?.(this.settings.aiEnabled, this.settings.aiPlayer)
+
+    const indicator = this.getMountPoints().aiIndicator
+    if (indicator) {
+      indicator.textContent = this.settings.aiEnabled
+        ? `AI active · ${this.settings.aiPlayer} · ${this.settings.aiDifficulty}`
+        : 'AI: off'
     }
   }
 

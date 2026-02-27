@@ -4,6 +4,7 @@ export interface UTTTSettings {
   analysisModeDefault: boolean
   timerPerTurnEnabled: boolean
   secondsPerTurn: number
+  /** AI settings — difficulty, on/off toggle, and which player the AI controls */
   aiDifficulty: AIDifficulty
   aiEnabled: boolean
   aiPlayer: 'X' | 'O'

@@ -139,6 +139,30 @@ const hudStyles = `
     background: rgba(139, 164, 196, 0.08);
     border: 1px solid var(--color-border, #1e3154);
   }
+
+  .score-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.375rem;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    padding: 0 0.25rem;
+    vertical-align: middle;
+  }
+
+  .score-badge--x {
+    background: rgba(255, 107, 107, 0.18);
+    color: var(--color-x, #ff6b6b);
+  }
+
+  .score-badge--o {
+    background: rgba(79, 195, 247, 0.18);
+    color: var(--color-o, #4fc3f7);
+  }
 `
 
 function boardIndexToRowCol(index: number): { row: number; col: number } {
@@ -150,6 +174,8 @@ function boardIndexToRowCol(index: number): { row: number; col: number } {
 
 export class UTTTHudElement extends HTMLElement {
   private state: GameState | null = null
+  private aiMode: { enabled: boolean; aiPlayer: 'X' | 'O' } = { enabled: false, aiPlayer: 'O' }
+  private score: { X: number; O: number } = { X: 0, O: 0 }
 
   connectedCallback(): void {
     if (!this.shadowRoot) {
@@ -164,6 +190,16 @@ export class UTTTHudElement extends HTMLElement {
     this.render()
   }
 
+  setAIMode(enabled: boolean, aiPlayer: 'X' | 'O'): void {
+    this.aiMode = { enabled, aiPlayer }
+    this.render()
+  }
+
+  setScore(score: { X: number; O: number }): void {
+    this.score = { ...score }
+    this.render()
+  }
+
   private render(): void {
     if (!this.shadowRoot) return
 
@@ -172,12 +208,19 @@ export class UTTTHudElement extends HTMLElement {
     const gameOver = state ? isGameOver(state) : false
     const draw = state ? isDraw(state) : false
 
+    // Resolve display names based on AI mode
+    const aiEnabled = this.aiMode.enabled
+    const aiPlayer = this.aiMode.aiPlayer
+    const xName = aiEnabled ? (aiPlayer === 'X' ? 'AI' : 'You') : 'Player X'
+    const oName = aiEnabled ? (aiPlayer === 'O' ? 'AI' : 'You') : 'Player O'
+
     let constraintHTML = ''
     let gameOverBadge = ''
 
     if (gameOver && state) {
       const winnerClass = state.winner === 'X' ? 'game-over-badge--win-x' : 'game-over-badge--win-o'
-      gameOverBadge = `<span class="game-over-badge ${winnerClass}" aria-live="polite">${state.winner} Wins!</span>`
+      const winnerName = state.winner === 'X' ? xName : oName
+      gameOverBadge = `<span class="game-over-badge ${winnerClass}" aria-live="polite">${winnerName} Wins!</span>`
     } else if (draw) {
       gameOverBadge = `<span class="game-over-badge game-over-badge--draw" aria-live="polite">Draw</span>`
     } else if (state && !isFreeMove(state)) {
@@ -193,26 +236,36 @@ export class UTTTHudElement extends HTMLElement {
     const xActive = !gameOver && !draw && currentPlayer === 'X'
     const oActive = !gameOver && !draw && currentPlayer === 'O'
 
-    const xStatus = gameOver && state?.winner === 'X' ? 'Winner!' : xActive ? 'Your turn' : ''
-    const oStatus = gameOver && state?.winner === 'O' ? 'Winner!' : oActive ? 'Your turn' : ''
+    const xThinking = aiEnabled && aiPlayer === 'X' && xActive
+    const oThinking = aiEnabled && aiPlayer === 'O' && oActive
+
+    const xStatus = gameOver && state?.winner === 'X' ? 'Winner!' : xThinking ? 'Thinking…' : xActive ? 'Your turn' : ''
+    const oStatus = gameOver && state?.winner === 'O' ? 'Winner!' : oThinking ? 'Thinking…' : oActive ? 'Your turn' : ''
+
+    const xScoreBadge = this.score.X > 0
+      ? `<span class="score-badge score-badge--x">${this.score.X}</span>`
+      : ''
+    const oScoreBadge = this.score.O > 0
+      ? `<span class="score-badge score-badge--o">${this.score.O}</span>`
+      : ''
 
     this.shadowRoot.innerHTML = `
       <style>${hudStyles}</style>
       <div class="hud" aria-label="Game HUD">
-        <div class="player-card player-card--x ${xActive ? 'player-card--active' : ''}" aria-label="Player X${xActive ? ' (current)' : ''}">
+        <div class="player-card player-card--x ${xActive ? 'player-card--active' : ''}" aria-label="${xName}${xActive ? ' (current)' : ''}">
           <div class="player-mark">✕</div>
           <div class="player-label">
-            <span class="player-name">Player X</span>
+            <span class="player-name">${xName}${xScoreBadge}</span>
             ${xStatus ? `<span class="player-status">${xStatus}</span>` : ''}
           </div>
         </div>
 
         <span class="vs-divider">VS</span>
 
-        <div class="player-card player-card--o ${oActive ? 'player-card--active' : ''}" aria-label="Player O${oActive ? ' (current)' : ''}">
+        <div class="player-card player-card--o ${oActive ? 'player-card--active' : ''}" aria-label="${oName}${oActive ? ' (current)' : ''}">
           <div class="player-mark">○</div>
           <div class="player-label">
-            <span class="player-name">Player O</span>
+            <span class="player-name">${oName}${oScoreBadge}</span>
             ${oStatus ? `<span class="player-status">${oStatus}</span>` : ''}
           </div>
         </div>

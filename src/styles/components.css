@@ -159,6 +159,13 @@ uttt-toast {
   font-size: var(--font-size-xs);
   padding: var(--space-2) var(--space-3);
   letter-spacing: 0.02em;
+  transition: background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+}
+
+.ai-indicator[data-active='true'] {
+  background: rgba(79, 195, 247, 0.08);
+  border-color: rgba(79, 195, 247, 0.4);
+  color: var(--color-o);
 }
 
 /* ── Endgame overlay ───────────────────────────────────── */
