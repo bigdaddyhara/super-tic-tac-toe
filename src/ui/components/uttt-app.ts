@@ -63,6 +63,13 @@ export class UTTTAppElement extends HTMLElement {
     const message = result === 'draw' ? 'Game over: Draw.' : `Game over: ${winner ?? 'Unknown'} wins.`
     this.notify(message, 'success', 4200)
     this.updateLiveStatus(message)
+
+    // Push updated score into HUD
+    const score = this.controller?.getPlayerWins()
+    if (score) {
+      const hudEl = this.getMountPoints().hud as UTTTHudElement | null
+      hudEl?.setScore?.(score)
+    }
   }
 
   connectedCallback(): void {
@@ -78,15 +85,19 @@ export class UTTTAppElement extends HTMLElement {
       <style>${styles}</style>
       <div class="shell">
         <header class="shell__header panel" aria-label="Application header">
-          <h1 class="app-title">Super Ultimate Tic-Tac-Toe</h1>
-          <p>DOM UI wired to existing controller APIs</p>
-          <div class="status-row" data-testid="hud-host" aria-label="HUD host">
-            <uttt-hud id="hud"></uttt-hud>
+          <div class="app-header-inner">
+            <div class="app-title-group">
+              <h1 class="app-title">Super Tic-Tac-Toe</h1>
+              <p class="app-subtitle">Ultimate Edition — outsmart the grid</p>
+            </div>
+            <div class="status-row" data-testid="hud-host" aria-label="HUD host">
+              <uttt-hud id="hud"></uttt-hud>
+            </div>
           </div>
         </header>
 
         <main class="shell__main" aria-label="Board area">
-          <section class="panel canvas-stage">
+          <section class="canvas-stage">
             <div class="canvas-host" data-testid="canvas-host">
               <canvas
                 id="game-canvas"
@@ -111,25 +122,26 @@ export class UTTTAppElement extends HTMLElement {
           </section>
 
           <section class="panel" id="settings-host" data-testid="settings-host" aria-label="Settings host">
-            <h2>Settings</h2>
-            <button
-              id="open-settings-btn"
-              class="button"
-              type="button"
-              aria-label="Open settings"
-              title="Open settings"
-            >Open Settings</button>
+            <div class="settings-action-row">
+              <button
+                id="open-settings-btn"
+                class="button button--wide"
+                type="button"
+                aria-label="Open settings"
+                title="Open settings"
+              >⚙ Settings</button>
 
-            <button
-              id="open-help-btn"
-              class="button"
-              type="button"
-              aria-label="Open help"
-              title="Open help and shortcuts"
-            >Help</button>
+              <button
+                id="open-help-btn"
+                class="button button--ghost button--wide"
+                type="button"
+                aria-label="Open help"
+                title="Open help and shortcuts"
+              >? How to Play</button>
+            </div>
 
             <div class="ai-indicator" id="ai-indicator" role="status" aria-live="polite">
-              AI: idle (thinking indicator placeholder)
+              AI: idle
             </div>
 
             <uttt-settings id="settings"></uttt-settings>
@@ -138,7 +150,7 @@ export class UTTTAppElement extends HTMLElement {
         </aside>
 
         <footer class="shell__footer panel">
-          <p class="footer-help">Keyboard shortcuts: ⌘/Ctrl+Z undo, ⇧+⌘/Ctrl+Z redo, N new game.</p>
+          <p class="footer-help">⌘/Ctrl+Z undo &nbsp;·&nbsp; ⇧+⌘/Ctrl+Z redo &nbsp;·&nbsp; N new game</p>
         </footer>
 
         <div id="status-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
@@ -212,6 +224,20 @@ export class UTTTAppElement extends HTMLElement {
     window.addEventListener('uttt:move-rejected', this.boundMoveRejected as EventListener)
     window.addEventListener('uttt:game-over', this.boundGameOver as EventListener)
 
+    controller.setOnAIThinking?.((thinking) => {
+      const indicator = this.getMountPoints().aiIndicator
+      if (!indicator) return
+      if (thinking) {
+        indicator.textContent = `🤖 AI thinking… (${this.settings.aiDifficulty})`
+        indicator.setAttribute('data-active', 'true')
+      } else {
+        indicator.textContent = this.settings.aiEnabled
+          ? `AI active · ${this.settings.aiPlayer} · ${this.settings.aiDifficulty}`
+          : 'AI: off'
+        indicator.removeAttribute('data-active')
+      }
+    })
+
     this.applySettings(this.settings)
     this.updateLiveStatus()
   }
@@ -273,6 +299,23 @@ export class UTTTAppElement extends HTMLElement {
       })
     } catch {
       this.notify('Visual options are unavailable in this build.', 'info')
+    }
+
+    try {
+      this.controller.setAIEnabled?.(this.settings.aiEnabled, this.settings.aiPlayer)
+    } catch {
+      this.notify('AI mode is unavailable in this build.', 'info')
+    }
+
+    // Sync AI mode label into HUD and indicator
+    const hudEl = this.getMountPoints().hud as UTTTHudElement | null
+    hudEl?.setAIMode?.(this.settings.aiEnabled, this.settings.aiPlayer)
+
+    const indicator = this.getMountPoints().aiIndicator
+    if (indicator) {
+      indicator.textContent = this.settings.aiEnabled
+        ? `AI active · ${this.settings.aiPlayer} · ${this.settings.aiDifficulty}`
+        : 'AI: off'
     }
   }
 

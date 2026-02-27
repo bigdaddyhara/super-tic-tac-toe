@@ -4,7 +4,10 @@ export interface UTTTSettings {
   analysisModeDefault: boolean
   timerPerTurnEnabled: boolean
   secondsPerTurn: number
+  /** AI settings — difficulty, on/off toggle, and which player the AI controls */
   aiDifficulty: AIDifficulty
+  aiEnabled: boolean
+  aiPlayer: 'X' | 'O'
   showLastMove: boolean
   highlightIntensity: number
 }
@@ -14,6 +17,8 @@ export const UTTT_SETTINGS_DEFAULTS: UTTTSettings = {
   timerPerTurnEnabled: false,
   secondsPerTurn: 15,
   aiDifficulty: 'medium',
+  aiEnabled: false,
+  aiPlayer: 'O',
   showLastMove: true,
   highlightIntensity: 0.6,
 }
@@ -38,6 +43,8 @@ export function isUTTTSettings(value: unknown): value is UTTTSettings {
     typeof candidate.timerPerTurnEnabled === 'boolean' &&
     typeof candidate.secondsPerTurn === 'number' &&
     isAIDifficulty(candidate.aiDifficulty) &&
+    typeof candidate.aiEnabled === 'boolean' &&
+    (candidate.aiPlayer === 'X' || candidate.aiPlayer === 'O') &&
     typeof candidate.showLastMove === 'boolean' &&
     typeof candidate.highlightIntensity === 'number'
   )
